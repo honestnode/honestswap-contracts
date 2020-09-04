@@ -48,4 +48,5 @@ contract IHasset is HassetStructs {
 
     /** @dev Getters */
     function getBasketManager() external view returns (address);
+
 }

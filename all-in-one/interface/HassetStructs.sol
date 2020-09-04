@@ -24,6 +24,8 @@ interface HassetStructs {
         uint256 savingBalance;
         /** @dev Amount of the Basset that is held in platform */
         uint256 platformBalance;
+        /** @dev Amount of the swap fee that is held in basket */
+        uint256 feeBalance;
     }
 
     /** @dev Status of the Basset - has it broken its peg? */

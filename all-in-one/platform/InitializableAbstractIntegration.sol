@@ -3,6 +3,7 @@ pragma solidity 0.5.16;
 // Internal
 import { IPlatformIntegration } from "../interface/IPlatformIntegration.sol";
 import { InitializableGovernableWhitelist } from "../governance/InitializableGovernableWhitelist.sol";
+import { InitializableReentrancyGuard } from "../common/InitializableReentrancyGuard.sol";
 
 // Libs
 import { HassetHelpers } from "../util/HassetHelpers.sol";
@@ -10,14 +11,13 @@ import { Initializable } from "@openzeppelin/upgrades/contracts/Initializable.so
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
-import { InitializableReentrancyGuard } from "../common/InitializableReentrancyGuard.sol";
 
 /**
  * @title   AbstractIntegration
  * @author  HonestSwap. Ltd.
  * @notice  A generalised platform integration contract from which to inherit
  * @dev     Contains functionality for managing access to a specific lending
- *          platform. pTokens are the generic name given to platform tokens e.g. cDai
+ *          platform. pTokens are the generic name given to platform tokens e.g. yDai
  *          Governance are responsible for setting platform and pToken addresses.
  */
 contract InitializableAbstractIntegration is

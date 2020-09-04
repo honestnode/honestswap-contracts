@@ -14,6 +14,7 @@ import {IHonestBasket} from "./interface/IHonestBasket.sol";
 import {IBassetMarket} from "./interface/IBassetMarket.sol";
 import {IHonestWeight} from "./interface/IHonestWeight.sol";
 import {HassetHelpers} from "./util/HassetHelpers.sol";
+import {HonestMath} from "./util/HonestMath.sol";
 
 contract Hasset is
 Initializable,
@@ -23,13 +24,14 @@ InitializableModule,
 InitializableReentrancyGuard {
 
     using SafeMath for uint256;
+    using HonestMath for uint256;
 
     // Forging Events
-    event Minted(address indexed minter, address recipient, uint256 mAssetQuantity, address bAsset, uint256 bAssetQuantity);
-    event MintedMulti(address indexed minter, address recipient, uint256 mAssetQuantity, address[] bAssets, uint256[] bAssetQuantities);
+    event Minted(address indexed minter, address recipient, uint256 hAssetQuantity, address bAsset, uint256 bAssetQuantity);
+    event MintedMulti(address indexed minter, address recipient, uint256 hAssetQuantity, address[] bAssets, uint256[] bAssetQuantities);
     event Swapped(address indexed swapper, address input, address output, uint256 outputAmount, address recipient);
-    event Redeemed(address indexed redeemer, address recipient, uint256 mAssetQuantity, address[] bAssets, uint256[] bAssetQuantities);
-    event RedeemedMasset(address indexed redeemer, address recipient, uint256 mAssetQuantity);
+    event Redeemed(address indexed redeemer, address recipient, uint256 hAssetQuantity, address[] bAssets, uint256[] bAssetQuantities);
+    event RedeemedHasset(address indexed redeemer, address recipient, uint256 hAssetQuantity);
     event PaidFee(address indexed payer, address asset, uint256 feeQuantity);
 
     // State Events
@@ -55,7 +57,9 @@ InitializableReentrancyGuard {
         string calldata _nameArg,
         string calldata _symbolArg,
         address _nexus,
-        address _honestBasket
+        address _honestBasket,
+        address _honestWeight,
+        address _bassetMarket
     )
     external
     initializer
@@ -65,6 +69,8 @@ InitializableReentrancyGuard {
         InitializableReentrancyGuard._initialize();
 
         honestBasket = IHonestBasket(_honestBasket);
+        honestWeight = IHonestWeight(_honestWeight);
+        bassetMarket = IBassetMarket(_bassetMarket);
 
         MAX_FEE = 0.1;
         swapFee = 0.001;
@@ -76,7 +82,7 @@ InitializableReentrancyGuard {
     }
 
     /**
-     * @dev Mint a single bAsset, at a 1:1 ratio with the bAsset. This contract
+     * @dev Mint a single hAsset, at a 1:1 ratio with the bAsset. This contract
      *      must have approval to spend the senders bAsset
      * @param _bAsset         Address of the bAsset to mint
      * @param _bAssetQuantity Quantity in bAsset units
@@ -266,7 +272,7 @@ InitializableReentrancyGuard {
         _mint(_recipient, hAssetQuantity);
         emit MintedMulti(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);
 
-        return mAssetQuantity;
+        return hAssetQuantity;
     }
 
     /** @dev Deposits tokens into the platform integration and returns the ratioed amount */
@@ -571,7 +577,7 @@ InitializableReentrancyGuard {
         _settleRedemption(_recipient, hAssetQuantity, props.bAssets, _bAssetQuantities, props.indexes, props.integrators, fee);
 
         emit Redeemed(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);
-        return mAssetQuantity;
+        return hAssetQuantity;
     }
 
     /**
@@ -633,7 +639,7 @@ InitializableReentrancyGuard {
             newTotalVault = newTotalVault.sub(ratioedRedemptionAmount);
         }
 
-        if(idxCount != len){
+        if (idxCount != len) {
 
         }
 
@@ -643,20 +649,20 @@ InitializableReentrancyGuard {
 
     /** @dev Redeem mAsset for a multiple bAssets */
     function _redeemMasset(
-        uint256 _mAssetQuantity,
+        uint256 _hAssetQuantity,
         address _recipient
     )
     internal
     {
         require(_recipient != address(0), "Must be a valid recipient");
-        require(_mAssetQuantity > 0, "Invalid redemption quantity");
+        require(_hAssetQuantity > 0, "Invalid redemption quantity");
 
         // Fetch high level details
         RedeemPropsMulti memory props = basketManager.prepareRedeemMulti();
         uint256 colRatio = StableMath.min(props.colRatio, StableMath.getFullScale());
 
         // Ensure payout is related to the collateralised mAsset quantity
-        uint256 collateralisedMassetQuantity = _mAssetQuantity.mulTruncate(colRatio);
+        uint256 collateralisedMassetQuantity = _hAssetQuantity.mulTruncate(colRatio);
 
         // Calculate redemption quantities
         (bool redemptionValid, string memory reason, uint256[] memory bAssetQuantities) =
@@ -664,9 +670,9 @@ InitializableReentrancyGuard {
         require(redemptionValid, reason);
 
         // Apply fees, burn mAsset and return bAsset to recipient
-        _settleRedemption(_recipient, _mAssetQuantity, props.bAssets, bAssetQuantities, props.indexes, props.integrators, redemptionFee);
+        _settleRedemption(_recipient, _hAssetQuantity, props.bAssets, bAssetQuantities, props.indexes, props.integrators, redemptionFee);
 
-        emit RedeemedMasset(msg.sender, _recipient, _mAssetQuantity);
+        emit RedeemedHasset(msg.sender, _recipient, _hAssetQuantity);
     }
 
     /**

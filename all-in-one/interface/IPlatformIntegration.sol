@@ -1,7 +1,7 @@
 pragma solidity 0.5.16;
 
 /**
- * @title Platform interface to integrate with lending platform like Compound, AAVE etc.
+ * @title Platform interface to integrate with lending platform like YFI etc.
  */
 interface IPlatformIntegration {
 
