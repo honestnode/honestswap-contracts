@@ -310,11 +310,11 @@ InitializableReentrancyGuard {
     ****************************************/
 
     /**
-     * @dev Simply swaps one bAsset for another bAsset or this mAsset at a 1:1 ratio.
+     * @dev Simply swaps one bAsset for another bAsset or this hAsset at a 1:1 ratio.
      * bAsset <> bAsset swaps will incur a small fee (swapFee()). Swap
      * is valid if it does not result in the input asset exceeding its maximum weight.
      * @param _input        bAsset to deposit
-     * @param _output       Asset to receive - either a bAsset or mAsset(this)
+     * @param _output       Asset to receive - either a bAsset or hAsset(this)
      * @param _quantity     Units of input bAsset to swap
      * @param _recipient    Address to credit output asset
      * @return output       Units of output asset returned
@@ -334,7 +334,7 @@ InitializableReentrancyGuard {
         require(_recipient != address(0), "Missing recipient address");
         require(_quantity > 0, "Invalid quantity");
 
-        // 1. If the output is this mAsset, just mint
+        // 1. If the output is this hAsset, just mint
         if (_output == address(this)) {
             return _mintTo(_input, _quantity, _recipient);
         }
@@ -373,7 +373,7 @@ InitializableReentrancyGuard {
      * @dev Determines both if a trade is valid, and the expected fee or output.
      * Swap is valid if it does not result in the input asset exceeding its maximum weight.
      * @param _input        bAsset to deposit
-     * @param _output       Asset to receive - bAsset or mAsset(this)
+     * @param _output       Asset to receive - bAsset or hAsset(this)
      * @param _quantity     Units of input bAsset to swap
      * @return valid        Bool to signify that swap is current valid
      * @return reason       If swap is invalid, this is the reason
@@ -402,12 +402,12 @@ InitializableReentrancyGuard {
         }
 
         // 2. check if trade is valid
-        // 2.1. If output is mAsset(this), then calculate a simple mint
+        // 2.1. If output is hAsset(this), then calculate a simple mint
         if (isMint) {
             // Validate mint
             (isValid, reason) = forgeValidator.validateMint(totalSupply(), inputDetails.bAsset, quantity);
             if (!isValid) return (false, reason, 0);
-            // Simply cast the quantity to mAsset
+            // Simply cast the quantity to hAsset
             output = quantity.mulRatioTruncate(inputDetails.bAsset.ratio);
             return (true, "", output);
         }
@@ -493,7 +493,7 @@ InitializableReentrancyGuard {
     /**
      * @dev Credits a recipient with a proportionate amount of bAssets, relative to current vault
      * balance levels and desired hAsset quantity. Burns the hAsset as payment.
-     * @param _hAssetQuantity   Quantity of mAsset to redeem
+     * @param _hAssetQuantity   Quantity of hAsset to redeem
      * @param _recipient        Address to credit the withdrawn bAssets
      */
     function redeemHasset(
@@ -631,7 +631,7 @@ InitializableReentrancyGuard {
             uint256 quantity = _bAssetQuantities[i];
             if (quantity > bAsset.poolBalance) return (false, "Cannot redeem more bAssets than are in the pool", false);
 
-            // Calculate ratioed redemption amount in mAsset terms
+            // Calculate ratioed redemption amount in hAsset terms
             uint256 ratioedRedemptionAmount = quantity.mulRatioTruncate(bAsset.ratio);
             // Subtract ratioed redemption amount from both vault and total supply
             data.ratioedBassetVaults[idx] = data.ratioedBassetVaults[idx].sub(ratioedRedemptionAmount);
@@ -647,7 +647,7 @@ InitializableReentrancyGuard {
     }
 
 
-    /** @dev Redeem mAsset for a multiple bAssets */
+    /** @dev Redeem hAsset for a multiple bAssets */
     function _redeemMasset(
         uint256 _hAssetQuantity,
         address _recipient
@@ -661,7 +661,7 @@ InitializableReentrancyGuard {
         RedeemPropsMulti memory props = basketManager.prepareRedeemMulti();
         uint256 colRatio = StableMath.min(props.colRatio, StableMath.getFullScale());
 
-        // Ensure payout is related to the collateralised mAsset quantity
+        // Ensure payout is related to the collateralised hAsset quantity
         uint256 collateralisedMassetQuantity = _hAssetQuantity.mulTruncate(colRatio);
 
         // Calculate redemption quantities
@@ -669,7 +669,7 @@ InitializableReentrancyGuard {
         forgeValidator.calculateRedemptionMulti(collateralisedMassetQuantity, props.bAssets);
         require(redemptionValid, reason);
 
-        // Apply fees, burn mAsset and return bAsset to recipient
+        // Apply fees, burn hAsset and return bAsset to recipient
         _settleRedemption(_recipient, _hAssetQuantity, props.bAssets, bAssetQuantities, props.indexes, props.integrators, redemptionFee);
 
         emit RedeemedHasset(msg.sender, _recipient, _hAssetQuantity);
@@ -720,7 +720,7 @@ InitializableReentrancyGuard {
     ****************************************/
 
     /**
-     * @dev Pay the forging fee by burning relative amount of mAsset
+     * @dev Pay the forging fee by burning relative amount of hAsset
      * @param _bAssetQuantity     Exact amount of bAsset being swapped out
      */
     function _deductSwapFee(address _asset, uint256 _bAssetQuantity, uint256 _feeRate)
@@ -738,7 +738,7 @@ InitializableReentrancyGuard {
     }
 
     /**
-     * @dev Pay the forging fee by burning relative amount of mAsset
+     * @dev Pay the forging fee by burning relative amount of hAsset
      * @param _bAssetQuantity     Exact amount of bAsset being swapped out
      */
     function _calcSwapFee(uint256 _bAssetQuantity, uint256 _feeRate)
@@ -783,7 +783,7 @@ InitializableReentrancyGuard {
     }
 
     /**
-      * @dev Set the ecosystem fee for redeeming a mAsset
+      * @dev Set the ecosystem fee for redeeming a hAsset
       * @param _swapFee Fee calculated in (%/100 * 1e18)
       */
     function setSwapFee(uint256 _swapFee)
@@ -797,7 +797,7 @@ InitializableReentrancyGuard {
     }
 
     /**
-      * @dev Set the ecosystem fee for redeeming a mAsset
+      * @dev Set the ecosystem fee for redeeming a hAsset
       * @param _redemptionFee Fee calculated in (%/100 * 1e18)
       */
     function setRedemptionFee(uint256 _redemptionFee)
@@ -811,7 +811,7 @@ InitializableReentrancyGuard {
     }
 
     /**
-      * @dev Gets the address of the BasketManager for this mAsset
+      * @dev Gets the address of the BasketManager for this hAsset
       * @return basketManager Address
       */
     function getBasketManager()
@@ -828,9 +828,9 @@ InitializableReentrancyGuard {
 
     /**
      * @dev Collects the interest generated from the Basket, minting a relative
-     *      amount of mAsset and sending it over to the SavingsManager.
-     * @return totalInterestGained   Equivalent amount of mAsset units that have been generated
-     * @return newSupply             New total mAsset supply
+     *      amount of hAsset and sending it over to the SavingsManager.
+     * @return totalInterestGained   Equivalent amount of hAsset units that have been generated
+     * @return newSupply             New total hAsset supply
      */
     function collectInterest()
     external
@@ -840,7 +840,7 @@ InitializableReentrancyGuard {
     {
         (uint256 interestCollected, uint256[] memory gains) = basketManager.collectInterest();
 
-        // mint new mAsset to sender
+        // mint new hAsset to sender
         _mint(msg.sender, interestCollected);
         emit MintedMulti(address(this), address(this), interestCollected, new address[](0), gains);
 

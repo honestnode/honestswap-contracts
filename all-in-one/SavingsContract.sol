@@ -1,10 +1,10 @@
 pragma solidity 0.5.16;
 
 // External
-import { ISavingsManager } from "./ISavingsManager.sol";
+import { ISavingsManager } from "./interface/ISavingsManager.sol";
 
 // Internal
-import { ISavingsContract } from "./ISavingsContract.sol";
+import { ISavingsContract } from "./interface/ISavingsContract.sol";
 import { Module } from "./common/Module.sol";
 
 // Libs

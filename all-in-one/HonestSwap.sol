@@ -3,7 +3,9 @@ pragma solidity 0.5.16;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract HonestSwap {
+import { IHonestSwap } from "./interface/IHonestSwap.sol";
+
+contract HonestSwap is IHonestSwap {
 
     mapping(address => uint8) private bAssetsMap;
 
