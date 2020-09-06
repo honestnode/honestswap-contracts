@@ -183,7 +183,7 @@ InitializableReentrancyGuard {
             }
         }
 
-        // Mint the Masset
+        // Mint the Hasset
         _mint(_recipient, quantityTransferred);
         emit Minted(msg.sender, _recipient, quantityTransferred, _bAsset, quantityTransferred);
 
@@ -234,7 +234,7 @@ InitializableReentrancyGuard {
         }
 
         uint256 totalBonusWeight = 0;
-        // Transfer the Bassets to the integrator, update storage and calc MassetQ
+        // Transfer the Bassets to the integrator, update storage and calc HassetQ
         for (uint256 i = 0; i < len; i++) {
             uint256 bAssetQuantity = _bAssetQuantities[i];
             if (bAssetQuantity > 0) {
@@ -300,7 +300,7 @@ InitializableReentrancyGuard {
     internal
     returns (uint256 quantityDeposited)
     {
-        uint256 quantityTransferred = MassetHelpers.transferTokens(msg.sender, _integrator, _bAsset, _erc20TransferFeeCharged, _quantity);
+        uint256 quantityTransferred = HassetHelpers.transferTokens(msg.sender, _integrator, _bAsset, _erc20TransferFeeCharged, _quantity);
         uint256 deposited = IPlatformIntegration(_integrator).deposit(_bAsset, quantityTransferred, _erc20TransferFeeCharged);
         quantityDeposited = StableMath.min(deposited, _quantity);
     }
@@ -648,7 +648,7 @@ InitializableReentrancyGuard {
 
 
     /** @dev Redeem hAsset for a multiple bAssets */
-    function _redeemMasset(
+    function _redeemHasset(
         uint256 _hAssetQuantity,
         address _recipient
     )
@@ -662,11 +662,11 @@ InitializableReentrancyGuard {
         uint256 colRatio = StableMath.min(props.colRatio, StableMath.getFullScale());
 
         // Ensure payout is related to the collateralised hAsset quantity
-        uint256 collateralisedMassetQuantity = _hAssetQuantity.mulTruncate(colRatio);
+        uint256 collateralisedHassetQuantity = _hAssetQuantity.mulTruncate(colRatio);
 
         // Calculate redemption quantities
         (bool redemptionValid, string memory reason, uint256[] memory bAssetQuantities) =
-        forgeValidator.calculateRedemptionMulti(collateralisedMassetQuantity, props.bAssets);
+        forgeValidator.calculateRedemptionMulti(collateralisedHassetQuantity, props.bAssets);
         require(redemptionValid, reason);
 
         // Apply fees, burn hAsset and return bAsset to recipient
