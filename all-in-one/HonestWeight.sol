@@ -21,13 +21,22 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
     event WeightUpdated(address indexed saver, uint256 newWeight, uint256 oldWeight);
 
     // Total weight
-    uint256 public totalWeight;
+    uint256 private totalWeight;
     // Amount of weight for each saver
-    mapping(address => uint256) public saverWeights;
+    mapping(address => uint256) private saverWeights;
 
     modifier onlyWeightManager() {
         require(_savingsManager() == msg.sender, "Must be weight manager");
         _;
+    }
+
+    /**
+     * @dev Query total weight
+     * @param _saver   saver address
+     */
+    function getTotalWeight() external view
+    returns (uint256 weight){
+        return totalWeight;
     }
 
     /**
