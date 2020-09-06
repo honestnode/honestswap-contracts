@@ -1,7 +1,7 @@
 pragma solidity 0.5.16;
 import {HassetStructs} from "./HassetStructs.sol";
 
-interface IHonestBasket is HassetStructs {
+contract  IHonestBasket is HassetStructs {
 
     /** @dev Setters for mAsset to update balances */
     function increasePoolBalance(
