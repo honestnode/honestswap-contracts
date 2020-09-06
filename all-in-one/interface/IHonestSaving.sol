@@ -11,4 +11,6 @@ interface IHonestSaving {
     function redeem(uint256 _amount) external returns (uint256 hAssetReturned);
 
     function querySavingBalance() external returns (uint256 hAssetBalance);
+
+    function queryHUsdSavingApy() external returns (uint256 apy);
 }
