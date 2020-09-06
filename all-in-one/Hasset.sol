@@ -44,10 +44,8 @@ InitializableReentrancyGuard {
     IBassetMarket private bassetMarket;
 
     // Basic redemption fee information
-    uint256 public swapFee;// 0.1%
+    uint256 private redemptionFee;// 0.1%
     uint256 private MAX_FEE;// 10%
-
-    uint256 public redemptionFee;
 
     /**
      * @dev Constructor
@@ -72,8 +70,8 @@ InitializableReentrancyGuard {
         honestWeight = IHonestWeight(_honestWeight);
         bassetMarket = IBassetMarket(_bassetMarket);
 
-        MAX_FEE = 0.1;
-        swapFee = 0.001;
+        MAX_FEE = 1e7;
+        redemptionFee = 1e5;
     }
 
     modifier onlySavingsManager() {
@@ -780,20 +778,6 @@ InitializableReentrancyGuard {
     onlyGovernor
     {
         forgeValidatorLocked = true;
-    }
-
-    /**
-      * @dev Set the ecosystem fee for redeeming a hAsset
-      * @param _swapFee Fee calculated in (%/100 * 1e18)
-      */
-    function setSwapFee(uint256 _swapFee)
-    external
-    onlyGovernor
-    {
-        require(_swapFee <= MAX_FEE, "Rate must be within bounds");
-        swapFee = _swapFee;
-
-        emit SwapFeeChanged(_swapFee);
     }
 
     /**

@@ -6,10 +6,10 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {HassetStructs} from "./HassetStructs.sol";
 
-contract IHasset is HassetStructs {
+interface IHasset is HassetStructs {
 
     /** @dev Calc interest */
-    function collectInterest() external returns (uint256 hAssetMinted, uint256 newTotalSupply);
+//    function collectInterest() external returns (uint256 hAssetMinted, uint256 newTotalSupply);
 
     /** @dev Minting */
     function mint(address _basset, uint256 _bassetQuantity)
@@ -39,13 +39,10 @@ contract IHasset is HassetStructs {
 
     function redeemHasset(uint256 _mAssetQuantity, address _recipient) external;
 
-    /** @dev Setters for the Manager or Gov to update module info */
-    function upgradeForgeValidator(address _newForgeValidator) external;
-
     /** @dev Setters for Gov to set system params */
-    function setSwapFee(uint256 _swapFee) external;
+    function setRedemptionFee(uint256 _redemptionFee) external;
 
     /** @dev Getters */
-    function getBasketManager() external view returns (address);
+//    function getBasketManager() external view returns (address);
 
 }

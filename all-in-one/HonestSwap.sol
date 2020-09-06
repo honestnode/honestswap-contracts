@@ -1,18 +1,39 @@
 pragma solidity 0.5.16;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {Initializable} from "@openzeppelin/upgrades/contracts/Initializable.sol";
+import {InitializablePausableModule} from "./common/InitializablePausableModule.sol";
+import {InitializableReentrancyGuard} from "./common/InitializableReentrancyGuard.sol";
 
-import { IHonestSwap } from "./interface/IHonestSwap.sol";
+import {IHonestSwap} from "./interface/IHonestSwap.sol";
+import {HassetStructs} from "./interface/HassetStructs.sol";
 
-contract HonestSwap is IHonestSwap {
+contract HonestSwap is
+Initializable,
+IHonestSwap,
+HassetStructs,
+InitializablePausableModule,
+InitializableReentrancyGuard {
 
     mapping(address => uint8) private bAssetsMap;
 
     address[] public integrations;
 
+    uint256 private swapFee;// 0.1%
 
+    function initialize(
+        address _nexus
+    )
+    external
+    initializer
+    {
+        InitializablePausableModule._initialize(_nexus);
+        InitializableReentrancyGuard._initialize();
 
+        MAX_FEE = 1e7;
+        swapFee = 1e5;
+    }
 
     /***************************************
                 SWAP (PUBLIC)
@@ -36,7 +57,7 @@ contract HonestSwap is IHonestSwap {
     )
     external
     nonReentrant
-    returns (uint256 output)
+    returns (uint256 outputQuantity)
     {
         require(_input != address(0) && _output != address(0), "Invalid swap asset addresses");
         require(_input != _output, "Cannot swap the same asset");
@@ -44,7 +65,7 @@ contract HonestSwap is IHonestSwap {
         require(_quantity > 0, "Invalid quantity");
 
         // 1. If the output is this mAsset, just mint
-        if(_output == address(this)){
+        if (_output == address(this)) {
             return _mintTo(_input, _quantity, _recipient);
         }
 
@@ -67,7 +88,7 @@ contract HonestSwap is IHonestSwap {
         // 5.1. Decrease output bal
         basketManager.decreaseVaultBalance(outputDetails.index, outputDetails.integrator, swapOutput);
         // 5.2. Calc fee, if any
-        if(applySwapFee){
+        if (applySwapFee) {
             swapOutput = _deductSwapFee(_output, swapOutput, swapFee);
         }
         // 5.3. Withdraw to recipient
@@ -76,5 +97,19 @@ contract HonestSwap is IHonestSwap {
         output = swapOutput;
 
         emit Swapped(msg.sender, _input, _output, swapOutput, _recipient);
+    }
+
+    /**
+      * @dev Set the ecosystem fee for redeeming a hAsset
+      * @param _swapFee Fee calculated in (%/100 * 1e18)
+      */
+    function setSwapFee(uint256 _swapFee)
+    external
+    onlyGovernor
+    {
+        require(_swapFee <= MAX_FEE, "Rate must be within bounds");
+        swapFee = _swapFee;
+
+        emit SwapFeeChanged(_swapFee);
     }
 }

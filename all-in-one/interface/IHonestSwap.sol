@@ -11,4 +11,7 @@ interface IHonestSwap {
 
     function checkSwap(address _inputBAsset, address _outputBAsset, uint256 _quantity, address _recipient)
     external returns (bool, string memory, uint256 outputQuantity);
+
+    /** @dev Setters for Gov to set system params */
+    function setSwapFee(uint256 _swapFee) external;
 }

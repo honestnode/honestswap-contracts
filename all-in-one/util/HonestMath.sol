@@ -1,6 +1,6 @@
 pragma solidity 0.5.16;
 
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 
 /**
  * @title   HonestMath
@@ -48,9 +48,9 @@ library HonestMath {
      * @return    Scaled value a to an exact number
      */
     function scaleInteger(uint256 x)
-        internal
-        pure
-        returns (uint256)
+    internal
+    pure
+    returns (uint256)
     {
         return x.mul(FULL_SCALE);
     }
@@ -67,9 +67,9 @@ library HonestMath {
      *              scale unit
      */
     function mulTruncate(uint256 x, uint256 y)
-        internal
-        pure
-        returns (uint256)
+    internal
+    pure
+    returns (uint256)
     {
         return mulTruncateScale(x, y, FULL_SCALE);
     }
@@ -84,9 +84,9 @@ library HonestMath {
      *              scale unit
      */
     function mulTruncateScale(uint256 x, uint256 y, uint256 scale)
-        internal
-        pure
-        returns (uint256)
+    internal
+    pure
+    returns (uint256)
     {
         // e.g. assume scale = fullScale
         // z = 10e18 * 9e17 = 9e36
@@ -103,9 +103,9 @@ library HonestMath {
      *              scale unit, rounded up to the closest base unit.
      */
     function mulTruncateCeil(uint256 x, uint256 y)
-        internal
-        pure
-        returns (uint256)
+    internal
+    pure
+    returns (uint256)
     {
         // e.g. 8e17 * 17268172638 = 138145381104e17
         uint256 scaled = x.mul(y);
@@ -124,9 +124,9 @@ library HonestMath {
      *              executing the division on the right hand input.
      */
     function divPrecisely(uint256 x, uint256 y)
-        internal
-        pure
-        returns (uint256)
+    internal
+    pure
+    returns (uint256)
     {
         // e.g. 8e18 * 1e18 = 8e36
         uint256 z = x.mul(FULL_SCALE);
@@ -146,9 +146,9 @@ library HonestMath {
      * @return      Result after multiplying the two inputs and then dividing by the ratio scale
      */
     function mulRatioTruncate(uint256 x, uint256 ratio)
-        internal
-        pure
-        returns (uint256 c)
+    internal
+    pure
+    returns (uint256 c)
     {
         return mulTruncateScale(x, ratio, RATIO_SCALE);
     }
@@ -161,9 +161,9 @@ library HonestMath {
      *              ratio scale, rounded up to the closest base unit.
      */
     function mulRatioTruncateCeil(uint256 x, uint256 ratio)
-        internal
-        pure
-        returns (uint256)
+    internal
+    pure
+    returns (uint256)
     {
         // e.g. How much mAsset should I burn for this bAsset (x)?
         // 1e18 * 1e8 = 1e26
@@ -183,9 +183,9 @@ library HonestMath {
      *              executing the division on the right hand input.
      */
     function divRatioPrecisely(uint256 x, uint256 ratio)
-        internal
-        pure
-        returns (uint256 c)
+    internal
+    pure
+    returns (uint256 c)
     {
         // e.g. 1e14 * 1e8 = 1e22
         uint256 y = x.mul(RATIO_SCALE);
@@ -204,9 +204,9 @@ library HonestMath {
      * @return      Minimum of the two inputs
      */
     function min(uint256 x, uint256 y)
-        internal
-        pure
-        returns (uint256)
+    internal
+    pure
+    returns (uint256)
     {
         return x > y ? y : x;
     }
@@ -218,9 +218,9 @@ library HonestMath {
      * @return      Maximum of the two inputs
      */
     function max(uint256 x, uint256 y)
-        internal
-        pure
-        returns (uint256)
+    internal
+    pure
+    returns (uint256)
     {
         return x > y ? x : y;
     }
@@ -232,10 +232,18 @@ library HonestMath {
      * @return            Input x clamped to a maximum value, upperBound
      */
     function clamp(uint256 x, uint256 upperBound)
-        internal
-        pure
-        returns (uint256)
+    internal
+    pure
+    returns (uint256)
     {
         return x > upperBound ? upperBound : x;
     }
+
+    //    function feePercent(uint256 x)
+    //    internal
+    //    pure
+    //    returns (uint256)
+    //    {
+    //        return x.mul(RATIO_SCALE);
+    //    }
 }
