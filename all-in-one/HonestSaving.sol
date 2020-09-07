@@ -73,7 +73,7 @@ InitializableReentrancyGuard
         saverBalances[saver] = newSavingBalance;
 
         // bAsset deposit to platform
-        BassetPropsMulti props = honestBasket.preparePropsMulti();
+        BassetPropsMulti memory props = honestBasket.preparePropsMulti();
 
         int len = apyOrderedBAssetIndices.length;
         if (len <= 0) {
@@ -131,7 +131,19 @@ InitializableReentrancyGuard
     function redeem(uint256 _amount) external
     nonReentrant
     returns (uint256 hAssetReturned){
+        require(_amount > 0, "Redeem amount should > 0");
 
+        address saver = msg.sender;
+        uint256 oldSavingBalance = saverBalances[saver];
+        require(oldSavingBalance >= _amount, "Redeem amount larger than saving balance ");
+        uint256 newSavingBalance = oldSavingBalance.sub(_amount);
+        // hUSD transfer back to saver
+        require(hUSD.transferFrom(address(this), msg.sender, _amount), "Redeem transfer failed");
+        saverBalances[saver] = newSavingBalance;
+        totalSavings = totalSavings.sub(_amount);
+
+        hAssetReturned = _amount;
+        emit SavingRedeemed(saver, _amount, newSavingBalance);
     }
 
     function querySavingBalance() external
@@ -143,36 +155,6 @@ InitializableReentrancyGuard
     returns (uint256 apy, uint256 apyTimestamp){
         apy = lastApy;
         apyTimestamp = lastApyTs;
-    }
-
-    /** @dev Deposits tokens into the platform integration and returns the ratioed amount */
-    function _depositTokens(
-        address _bAsset,
-        uint256 _bAssetRatio,
-        address _integrator,
-        bool _erc20TransferFeeCharged,
-        uint256 _quantity
-    )
-    internal
-    returns (uint256 quantityDeposited, uint256 ratioedDeposit)
-    {
-        quantityDeposited = _depositTokens(_bAsset, _integrator, _erc20TransferFeeCharged, _quantity);
-        ratioedDeposit = quantityDeposited.mulRatioTruncate(_bAssetRatio);
-    }
-
-    /** @dev Deposits tokens into the platform integration and returns the deposited amount */
-    function _depositTokens(
-        address _bAsset,
-        address _integrator,
-        bool _erc20TransferFeeCharged,
-        uint256 _quantity
-    )
-    internal
-    returns (uint256 quantityDeposited)
-    {
-        uint256 quantityTransferred = HassetHelpers.transferTokens(msg.sender, _integrator, _bAsset, _erc20TransferFeeCharged, _quantity);
-        uint256 deposited = IPlatformIntegration(_integrator).deposit(_bAsset, quantityTransferred, _erc20TransferFeeCharged);
-        quantityDeposited = StableMath.min(deposited, _quantity);
     }
 
 }
