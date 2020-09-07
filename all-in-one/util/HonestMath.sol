@@ -75,6 +75,21 @@ library HonestMath {
     }
 
     /**
+     * @dev Multiplies two precise units, and then truncates by the radio scale
+     * @param x     Left hand input to multiplication
+     * @param y     Right hand input to multiplication
+     * @return      Result after multiplying the two inputs and then dividing by the shared
+     *              scale unit
+     */
+    function mulTruncateRadio(uint256 x, uint256 y)
+    internal
+    pure
+    returns (uint256)
+    {
+        return mulTruncateScale(x, y, RATIO_SCALE);
+    }
+
+    /**
      * @dev Multiplies two precise units, and then truncates by the given scale. For example,
      * when calculating 90% of 10e18, (10e18 * 9e17) / 1e18 = (9e36) / 1e18 = 9e18
      * @param x     Left hand input to multiplication

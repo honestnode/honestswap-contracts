@@ -35,16 +35,14 @@ InitializableReentrancyGuard {
     event PaidFee(address indexed payer, address asset, uint256 feeQuantity);
 
     // State Events
-    event SwapFeeChanged(uint256 fee);
     event RedemptionFeeChanged(uint256 fee);
-    event ForgeValidatorChanged(address forgeValidator);
 
     IHonestBasket private honestBasket;
     IHonestWeight private honestWeight;
     IBassetMarket private bassetMarket;
 
     // Basic redemption fee information
-    uint256 private redemptionFee;// 0.1%
+    uint256 private redemptionFee;// 0.1% == 1e15 FULL SCALE 1e18
     uint256 private MAX_FEE;// 10%
 
     /**
@@ -57,7 +55,7 @@ InitializableReentrancyGuard {
         address _nexus,
         address _honestBasket,
         address _honestWeight,
-        address _bassetMarket
+        address _bAssetMarket
     )
     external
     initializer
@@ -68,16 +66,16 @@ InitializableReentrancyGuard {
 
         honestBasket = IHonestBasket(_honestBasket);
         honestWeight = IHonestWeight(_honestWeight);
-        bassetMarket = IBassetMarket(_bassetMarket);
+        bassetMarket = IBassetMarket(_bAssetMarket);
 
-        MAX_FEE = 1e7;
-        redemptionFee = 1e5;
+        MAX_FEE = 1e17;
+        redemptionFee = 1e15;
     }
 
-    modifier onlySavingsManager() {
-        require(_savingsManager() == msg.sender, "Must be savings manager");
-        _;
-    }
+    //    modifier onlySavingsManager() {
+    //        require(_savingsManager() == msg.sender, "Must be savings manager");
+    //        _;
+    //    }
 
     /**
      * @dev Mint a single hAsset, at a 1:1 ratio with the bAsset. This contract
@@ -168,16 +166,23 @@ InitializableReentrancyGuard {
         // Log the pool increase
         honestBasket.increasePoolBalance(bInfo.index, quantityTransferred);
         // calc weight
-
         // query usd price for bAsset
-        uint256 bAssetPrice = bassetMarket.getBassetPrice(_bAsset);
-        if (bAssetPrice > 1) {
-            uint256 bonusWeightFactor = bAssetPrice.sub(1);
-            bonusWeightFactor = bonusWeightFactor.sub(swapFee);
-            uint256 bonusWeight = bonusWeightFactor.mul(quantityTransferred);
-            if (bonusWeight > 0) {
-                // add bonus weight
-                honestWeight.addWeight(_recipient, bonusWeight);
+        (uint256 bAssetPrice, uint8 bAssetPriceDecimals) = bassetMarket.getBassetPrice(_bAsset);
+        if (bAssetPrice > 0 && bAssetPriceDecimals > 0) {
+            uint256 priceScale = 10 ** bAssetPriceDecimals;
+            if (bAssetPrice > priceScale) {
+                uint256 bonusWeightFactor = bAssetPrice.sub(priceScale);
+                if (bonusWeightFactor > 0) {
+                    uint256 feeFactor = redemptionFee.mulTruncate(priceScale);
+                    bonusWeightFactor = bonusWeightFactor.sub(feeFactor);
+                    if (bonusWeightFactor > 0) {
+                        uint256 bonusWeight = bonusWeightFactor.mulTruncateScale(quantityTransferred, priceScale);
+                        if (bonusWeight > 0) {
+                            // add bonus weight
+                            honestWeight.addWeight(_recipient, 0, bonusWeight);
+                        }
+                    }
+                }
             }
         }
 
@@ -190,7 +195,6 @@ InitializableReentrancyGuard {
 
     function _validateMint(Basset calldata _bAsset)
     internal
-    pure
     returns (bool isValid, string memory reason)
     {
         if (
@@ -216,8 +220,7 @@ InitializableReentrancyGuard {
         require(len > 0 && len == _bAssets.length, "Input array mismatch");
 
         // Load only needed bAssets in array
-        ForgePropsMulti memory props
-        = honestBasket.prepareForgeBassets(_bAssets);
+        ForgePropsMulti memory props = honestBasket.prepareForgeBassets(_bAssets);
         if (!props.isValid) return 0;
 
         uint256 hAssetQuantity = 0;
@@ -245,13 +248,21 @@ InitializableReentrancyGuard {
                 hAssetQuantity = hAssetQuantity.add(quantityTransferred);
 
                 // query usd price for bAsset
-                uint256 bAssetPrice = bassetMarket.getBassetPrice(bAsset.addr);
-                if (bAssetPrice > 1) {
-                    uint256 bonusWeightFactor = bAssetPrice.sub(1);
-                    bonusWeightFactor = bonusWeightFactor.sub(swapFee);
-                    uint256 bonusWeight = bonusWeightFactor.mul(quantityTransferred);
-                    if (bonusWeight > 0) {
-                        totalBonusWeight.add(bonusWeight);
+                (uint256 bAssetPrice, uint8 bAssetPriceDecimals) = bassetMarket.getBassetPrice(bAsset.addr);
+                if (bAssetPrice > 0 && bAssetPriceDecimals > 0) {
+                    uint256 priceScale = 10 ** bAssetPriceDecimals;
+                    if (bAssetPrice > priceScale) {
+                        uint256 bonusWeightFactor = bAssetPrice.sub(priceScale);
+                        if (bonusWeightFactor > 0) {
+                            uint256 feeFactor = redemptionFee.mulTruncate(priceScale);
+                            bonusWeightFactor = bonusWeightFactor.sub(feeFactor);
+                            if (bonusWeightFactor > 0) {
+                                uint256 bonusWeight = bonusWeightFactor.mulTruncateScale(quantityTransferred, priceScale);
+                                if (bonusWeight > 0) {
+                                    totalBonusWeight.add(bonusWeight);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -263,7 +274,7 @@ InitializableReentrancyGuard {
 
         // add bonus weight
         if (totalBonusWeight > 0) {
-            honestWeight.addWeight(_recipient, totalBonusWeight);
+            honestWeight.addWeight(_recipient, 0, totalBonusWeight);
         }
 
         // Mint the Hasset
@@ -273,163 +284,9 @@ InitializableReentrancyGuard {
         return hAssetQuantity;
     }
 
-    /** @dev Deposits tokens into the platform integration and returns the ratioed amount */
-    function _depositTokens(
-        address _bAsset,
-        uint256 _bAssetRatio,
-        address _integrator,
-        bool _erc20TransferFeeCharged,
-        uint256 _quantity
-    )
-    internal
-    returns (uint256 quantityDeposited, uint256 ratioedDeposit)
-    {
-        quantityDeposited = _depositTokens(_bAsset, _integrator, _erc20TransferFeeCharged, _quantity);
-        ratioedDeposit = quantityDeposited.mulRatioTruncate(_bAssetRatio);
-    }
-
-    /** @dev Deposits tokens into the platform integration and returns the deposited amount */
-    function _depositTokens(
-        address _bAsset,
-        address _integrator,
-        bool _erc20TransferFeeCharged,
-        uint256 _quantity
-    )
-    internal
-    returns (uint256 quantityDeposited)
-    {
-        uint256 quantityTransferred = HassetHelpers.transferTokens(msg.sender, _integrator, _bAsset, _erc20TransferFeeCharged, _quantity);
-        uint256 deposited = IPlatformIntegration(_integrator).deposit(_bAsset, quantityTransferred, _erc20TransferFeeCharged);
-        quantityDeposited = StableMath.min(deposited, _quantity);
-    }
-
-    /***************************************
-                SWAP (PUBLIC)
-    ****************************************/
-
-    /**
-     * @dev Simply swaps one bAsset for another bAsset or this hAsset at a 1:1 ratio.
-     * bAsset <> bAsset swaps will incur a small fee (swapFee()). Swap
-     * is valid if it does not result in the input asset exceeding its maximum weight.
-     * @param _input        bAsset to deposit
-     * @param _output       Asset to receive - either a bAsset or hAsset(this)
-     * @param _quantity     Units of input bAsset to swap
-     * @param _recipient    Address to credit output asset
-     * @return output       Units of output asset returned
-     */
-    function swap(
-        address _input,
-        address _output,
-        uint256 _quantity,
-        address _recipient
-    )
-    external
-    nonReentrant
-    returns (uint256 output)
-    {
-        require(_input != address(0) && _output != address(0), "Invalid swap asset addresses");
-        require(_input != _output, "Cannot swap the same asset");
-        require(_recipient != address(0), "Missing recipient address");
-        require(_quantity > 0, "Invalid quantity");
-
-        // 1. If the output is this hAsset, just mint
-        if (_output == address(this)) {
-            return _mintTo(_input, _quantity, _recipient);
-        }
-
-        // 2. Grab all relevant info from the Manager
-        (bool isValid, string memory reason, BassetDetails memory inputDetails, BassetDetails memory outputDetails) =
-        basketManager.prepareSwapBassets(_input, _output, false);
-        require(isValid, reason);
-
-        // 3. Deposit the input tokens
-        uint256 quantitySwappedIn = _depositTokens(_input, inputDetails.integrator, inputDetails.bAsset.isTransferFeeCharged, _quantity);
-        // 3.1. Update the input balance
-        basketManager.increaseVaultBalance(inputDetails.index, inputDetails.integrator, quantitySwappedIn);
-
-        // 4. Validate the swap
-        (bool swapValid, string memory swapValidityReason, uint256 swapOutput, bool applySwapFee) =
-        forgeValidator.validateSwap(totalSupply(), inputDetails.bAsset, outputDetails.bAsset, quantitySwappedIn);
-        require(swapValid, swapValidityReason);
-
-        // 5. Settle the swap
-        // 5.1. Decrease output bal
-        basketManager.decreaseVaultBalance(outputDetails.index, outputDetails.integrator, swapOutput);
-        // 5.2. Calc fee, if any
-        if (applySwapFee) {
-            swapOutput = _deductSwapFee(_output, swapOutput, swapFee);
-        }
-        // 5.3. Withdraw to recipient
-        IPlatformIntegration(outputDetails.integrator).withdraw(_recipient, _output, swapOutput, outputDetails.bAsset.isTransferFeeCharged);
-
-        output = swapOutput;
-
-        emit Swapped(msg.sender, _input, _output, swapOutput, _recipient);
-    }
-
-    /**
-     * @dev Determines both if a trade is valid, and the expected fee or output.
-     * Swap is valid if it does not result in the input asset exceeding its maximum weight.
-     * @param _input        bAsset to deposit
-     * @param _output       Asset to receive - bAsset or hAsset(this)
-     * @param _quantity     Units of input bAsset to swap
-     * @return valid        Bool to signify that swap is current valid
-     * @return reason       If swap is invalid, this is the reason
-     * @return output       Units of _output asset the trade would return
-     */
-    function getSwapOutput(
-        address _input,
-        address _output,
-        uint256 _quantity
-    )
-    external
-    view
-    returns (bool, string memory, uint256 output)
-    {
-        require(_input != address(0) && _output != address(0), "Invalid swap asset addresses");
-        require(_input != _output, "Cannot swap the same asset");
-
-        bool isMint = _output == address(this);
-        uint256 quantity = _quantity;
-
-        // 1. Get relevant asset data
-        (bool isValid, string memory reason, BassetDetails memory inputDetails, BassetDetails memory outputDetails) =
-        basketManager.prepareSwapBassets(_input, _output, isMint);
-        if (!isValid) {
-            return (false, reason, 0);
-        }
-
-        // 2. check if trade is valid
-        // 2.1. If output is hAsset(this), then calculate a simple mint
-        if (isMint) {
-            // Validate mint
-            (isValid, reason) = forgeValidator.validateMint(totalSupply(), inputDetails.bAsset, quantity);
-            if (!isValid) return (false, reason, 0);
-            // Simply cast the quantity to hAsset
-            output = quantity.mulRatioTruncate(inputDetails.bAsset.ratio);
-            return (true, "", output);
-        }
-        // 2.2. If a bAsset swap, calculate the validity, output and fee
-        else {
-            (bool swapValid, string memory swapValidityReason, uint256 swapOutput, bool applySwapFee) =
-            forgeValidator.validateSwap(totalSupply(), inputDetails.bAsset, outputDetails.bAsset, quantity);
-            if (!swapValid) {
-                return (false, swapValidityReason, 0);
-            }
-
-            // 3. Return output and fee, if any
-            if (applySwapFee) {
-                (, swapOutput) = _calcSwapFee(swapOutput, swapFee);
-            }
-            return (true, "", swapOutput);
-        }
-    }
-
-
     /***************************************
               REDEMPTION (PUBLIC)
     ****************************************/
-
     /**
      * @dev Credits the sender with a certain quantity of selected bAsset, in exchange for burning the
      *      relative hAsset quantity from the sender. Sender also incurs a small hAsset fee, if any.
@@ -479,29 +336,14 @@ InitializableReentrancyGuard {
     function redeemMulti(
         address[] calldata _bAssets,
         uint256[] calldata _bAssetQuantities,
-        address _recipient
+        address _recipient,
+        bool _inProportion
     )
     external
     nonReentrant
     returns (uint256 hAssetRedeemed)
     {
-        return _redeemTo(_bAssets, _bAssetQuantities, _recipient);
-    }
-
-    /**
-     * @dev Credits a recipient with a proportionate amount of bAssets, relative to current vault
-     * balance levels and desired hAsset quantity. Burns the hAsset as payment.
-     * @param _hAssetQuantity   Quantity of hAsset to redeem
-     * @param _recipient        Address to credit the withdrawn bAssets
-     */
-    function redeemHasset(
-        uint256 _hAssetQuantity,
-        address _recipient
-    )
-    external
-    nonReentrant
-    {
-        _redeemHasset(_hAssetQuantity, _recipient);
+        return _redeemTo(_bAssets, _bAssetQuantities, _recipient, _inProportion);
     }
 
     /***************************************
@@ -521,21 +363,22 @@ InitializableReentrancyGuard {
         uint256[] memory quantities = new uint256[](1);
         bAssets[0] = _bAsset;
         quantities[0] = _bAssetQuantity;
-        return _redeemTo(bAssets, quantities, _recipient);
+        return _redeemTo(bAssets, quantities, _recipient, false);
     }
 
     /** @dev Redeem hAsset for one or more bAssets */
     function _redeemTo(
         address[] memory _bAssets,
         uint256[] memory _bAssetQuantities,
-        address _recipient
+        address _recipient,
+        bool _inProportion
     )
     internal
     returns (uint256 hAssetRedeemed)
     {
         require(_recipient != address(0), "Must be a valid recipient");
-        uint256 bAssetCount = _bAssetQuantities.length;
-        require(bAssetCount > 0 && bAssetCount == _bAssets.length, "Input array mismatch");
+        uint256 len = _bAssets.length;
+        require(len > 0 && len == _bAssetQuantities.length, "Input array mismatch");
 
         // Get high level basket info
         Basket memory basket = honestBasket.getBasket();
@@ -553,14 +396,13 @@ InitializableReentrancyGuard {
         }
 
         // Validate redemption
-        (bool redemptionValid, string memory reason, bool applyFee) =
+        (bool redemptionValid, string memory reason) =
         _validateRedemption(basket.bassets, props.indexes, _bAssetQuantities);
         require(redemptionValid, reason);
 
         uint256 hAssetQuantity = 0;
-
         // Calc total redeemed hAsset quantity
-        for (uint256 i = 0; i < bAssetCount; i++) {
+        for (uint256 i = 0; i < len; i++) {
             uint256 bAssetQuantity = _bAssetQuantities[i];
             if (bAssetQuantity > 0) {
                 hAssetQuantity = hAssetQuantity.add(bAssetQuantity);
@@ -569,7 +411,7 @@ InitializableReentrancyGuard {
         require(hAssetQuantity > 0, "Must redeem some bAssets");
 
         // Redemption has fee? Fetch the rate
-        uint256 fee = applyFee ? swapFee : 0;
+        uint256 fee = _inProportion ? 0 : redemptionFee;
 
         // Apply fees, burn hAsset and return bAsset to recipient
         _settleRedemption(_recipient, hAssetQuantity, props.bAssets, _bAssetQuantities, props.indexes, props.integrators, fee);
@@ -580,9 +422,6 @@ InitializableReentrancyGuard {
 
     /**
      * @notice Checks whether a given redemption is valid and returns the result
-     * @dev A redemption is valid if it does not push any untouched bAssets above their
-     * max weightings. In addition, if bAssets are currently above their max weight
-     * (i.e. during basket composition changes) they must be redeemed
      * @param _allBassets       Array of all bAsset information
      * @param _indices          Indexes of the bAssets to redeem
      * @param _bAssetQuantities Quantity of bAsset to redeem
@@ -591,86 +430,48 @@ InitializableReentrancyGuard {
      * @return feeRequired      Does this redemption require the swap fee to be applied
      */
     function _validateRedemption(
-        Basset[] calldata _bAssets,
+        Basset[] calldata _allBassets,
         uint8[] calldata _indices,
         uint256[] calldata _bAssetQuantities
     )
-    returns (bool, string memory, bool)
+    internal
+    returns (bool, string memory)
     {
         uint256 idxCount = _indices.length;
-        if (idxCount != _bAssetQuantities.length) return (false, "Input arrays must have equal length", false);
+        if (idxCount != _bAssetQuantities.length || idxCount <= 0) {
+            return (false, "Input arrays must have equal length");
+        }
+        uint256 len = _allBassets.length;
 
-        uint256 len = _bAssets.length;
         // check bAsset status
         for (uint256 i = 0; i < len; i++) {
-            BassetStatus status = _bAssets[i].status;
+            BassetStatus status = _allBassets[i].status;
             if (status == BassetStatus.Blacklisted) {
-                response.isValid = false;
-                response.reason = "Basket contains blacklisted bAsset";
-                return (false, "Basket contains blacklisted bAsset", false);
+                return (false, "Basket contains blacklisted bAsset");
             } else if (
                 status == BassetStatus.Liquidating ||
                 status == BassetStatus.Liquidated ||
                 status == BassetStatus.Failed
             ) {
-                return (false, "Must redeem proportionately", false);
+                return (false, "Must redeem proportionately");
             }
         }
-
-        uint256 newTotalVault = _totalVault;
-        bool applySwapFee = true;
 
         // check balance and proportion
         for (uint256 i = 0; i < idxCount; i++) {
             uint8 idx = _indices[i];
-            if (idx >= _allBassets.length) return (false, "Basset does not exist", false);
+            if (idx < 0 || idx >= _allBassets.length) return (false, "Basset does not exist");
 
-            Basset memory bAsset = _bAssets[idx];
+            Basset memory bAsset = _allBassets[idx];
             uint256 quantity = _bAssetQuantities[i];
-            if (quantity > bAsset.poolBalance) return (false, "Cannot redeem more bAssets than are in the pool", false);
-
-            // Calculate ratioed redemption amount in hAsset terms
-            uint256 ratioedRedemptionAmount = quantity.mulRatioTruncate(bAsset.ratio);
-            // Subtract ratioed redemption amount from both vault and total supply
-            data.ratioedBassetVaults[idx] = data.ratioedBassetVaults[idx].sub(ratioedRedemptionAmount);
-
-            newTotalVault = newTotalVault.sub(ratioedRedemptionAmount);
+            uint256 poolBalance = bAsset.poolBalance.add(bAsset.savingBalance);
+            // TODO
+            if (quantity > poolBalance) {
+                return (false, "Cannot redeem more bAssets than are in the pool");
+            }
         }
 
-        if (idxCount != len) {
-
-        }
-
-        return (true, "", applySwapFee);
-    }
-
-
-    /** @dev Redeem hAsset for a multiple bAssets */
-    function _redeemHasset(
-        uint256 _hAssetQuantity,
-        address _recipient
-    )
-    internal
-    {
-        require(_recipient != address(0), "Must be a valid recipient");
-        require(_hAssetQuantity > 0, "Invalid redemption quantity");
-
-        // Fetch high level details
-        RedeemPropsMulti memory props = basketManager.prepareRedeemMulti();
-        uint256 colRatio = StableMath.min(props.colRatio, StableMath.getFullScale());
-
-        // Ensure payout is related to the collateralised hAsset quantity
-        uint256 collateralisedHassetQuantity = _hAssetQuantity.mulTruncate(colRatio);
-
-        // Calculate redemption quantities
-        (bool redemptionValid, string memory reason, uint256[] memory bAssetQuantities) =
-        forgeValidator.calculateRedemptionMulti(collateralisedHassetQuantity, props.bAssets);
-        require(redemptionValid, reason);
-
-        // Apply fees, burn hAsset and return bAsset to recipient
-        _settleRedemption(_recipient, _hAssetQuantity, props.bAssets, bAssetQuantities, props.indexes, props.integrators, redemptionFee);
-
-        emit RedeemedHasset(msg.sender, _recipient, _hAssetQuantity);
+        return (true, "");
     }
 
     /**
@@ -696,17 +497,34 @@ InitializableReentrancyGuard {
         _burn(msg.sender, _hAssetQuantity);
 
         // Reduce the amount of bAssets marked in the vault
-        honestBasket.decreasePoolBalances(_indices, _integrators, _bAssetQuantities);
+        honestBasket.decreasePoolBalances(_indices, _bAssetQuantities);
 
         // Transfer the Bassets to the recipient
         uint256 bAssetCount = _bAssets.length;
         for (uint256 i = 0; i < bAssetCount; i++) {
-            address bAsset = _bAssets[i].addr;
+            Basset bAsset = _bAssets[i];
+            address bAssetAddr = _bAssets[i].addr;
             uint256 q = _bAssetQuantities[i];
             if (q > 0) {
                 // Deduct the redemption fee, if any
-                q = _deductSwapFee(bAsset, q, _feeRate);
+                (uint256 fee, uint256 outputMinusFee) = _deductRedeemFee(bAssetAddr, q, _feeRate);
+                q = outputMinusFee;
+
+                // TODO update fee/poo/ balance
+                honestBasket.increaseFeeBalance(_indices[i], fee);
+
+                // use pool balance first
+                if (bAsset.poolBalance >= q) {
+
+                }else{
+                    // still need to withdraw from platform TODO
+
+                }
+
                 // Transfer the Bassets to the user
+
+                uint256 quantityTransferred = HassetHelpers.transferTokens(getBasketManager(), _recipient, bAssetAddr, bAsset.isTransferFeeCharged, _bAssetQuantity);
+
                 IPlatformIntegration(_integrators[i]).withdraw(_recipient, bAsset, q, _bAssets[i].isTransferFeeCharged);
             }
         }
@@ -721,34 +539,17 @@ InitializableReentrancyGuard {
      * @dev Pay the forging fee by burning relative amount of hAsset
      * @param _bAssetQuantity     Exact amount of bAsset being swapped out
      */
-    function _deductSwapFee(address _asset, uint256 _bAssetQuantity, uint256 _feeRate)
+    function _deductRedeemFee(address _asset, uint256 _bAssetQuantity, uint256 _feeRate)
     private
-    returns (uint256 outputMinusFee)
+    returns (uint256 fee, uint256 outputMinusFee)
     {
-
         outputMinusFee = _bAssetQuantity;
-
         if (_feeRate > 0) {
-            (uint256 fee, uint256 output) = _calcSwapFee(_bAssetQuantity, _feeRate);
-            outputMinusFee = output;
+            fee = _bAssetQuantity.mulTruncate(_feeRate);
+            outputMinusFee = _bAssetQuantity.sub(fee);
+
             emit PaidFee(msg.sender, _asset, fee);
         }
-    }
-
-    /**
-     * @dev Pay the forging fee by burning relative amount of hAsset
-     * @param _bAssetQuantity     Exact amount of bAsset being swapped out
-     */
-    function _calcSwapFee(uint256 _bAssetQuantity, uint256 _feeRate)
-    private
-    pure
-    returns (uint256 feeAmount, uint256 outputMinusFee)
-    {
-        // e.g. for 500 massets.
-        // feeRate == 1% == 1e16. _quantity == 5e20.
-        // (5e20 * 1e16) / 1e18 = 5e18
-        feeAmount = _bAssetQuantity.mulTruncate(_feeRate);
-        outputMinusFee = _bAssetQuantity.sub(feeAmount);
     }
 
     /***************************************
@@ -816,18 +617,18 @@ InitializableReentrancyGuard {
      * @return totalInterestGained   Equivalent amount of hAsset units that have been generated
      * @return newSupply             New total hAsset supply
      */
-    function collectInterest()
-    external
-    onlySavingsManager
-    nonReentrant
-    returns (uint256 totalInterestGained, uint256 newSupply)
-    {
-        (uint256 interestCollected, uint256[] memory gains) = basketManager.collectInterest();
-
-        // mint new hAsset to sender
-        _mint(msg.sender, interestCollected);
-        emit MintedMulti(address(this), address(this), interestCollected, new address[](0), gains);
-
-        return (interestCollected, totalSupply());
-    }
+    //    function collectInterest()
+    //    external
+    //    onlySavingsManager
+    //    nonReentrant
+    //    returns (uint256 totalInterestGained, uint256 newSupply)
+    //    {
+    //        (uint256 interestCollected, uint256[] memory gains) = basketManager.collectInterest();
+    //
+    //        // mint new hAsset to sender
+    //        _mint(msg.sender, interestCollected);
+    //        emit MintedMulti(address(this), address(this), interestCollected, new address[](0), gains);
+    //
+    //        return (interestCollected, totalSupply());
+    //    }
 }

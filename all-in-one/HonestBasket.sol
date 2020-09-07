@@ -24,6 +24,8 @@ InitializableReentrancyGuard
     // hAsset linked to the manager (const)
     address public hAsset;
 
+    uint256 private hAssetPoolBalance;
+
     // Struct holding Basket details
     Basket public basket;
     // Mapping holds bAsset token address => array index
@@ -101,21 +103,24 @@ InitializableReentrancyGuard
     onlyHasset
     nonReentrant
     {
-        basket.bassets[_bAssetIndex].poolBalance =
-        basket.bassets[_bAssetIndex].poolBalance.add(_increaseAmount);
+        Basset memory bAsset = _getBasset(_bAssetIndex);
+        bAsset.poolBalance = bAsset.poolBalance.add(_increaseAmount);
     }
 
     function increasePoolBalances(
         uint8[] calldata _bAssetIndices,
-        uint256[] calldata _increaseAmount)
+        uint256[] calldata _increaseAmounts)
     external
     onlyHasset
     nonReentrant
     {
         uint256 len = _bAssetIndices.length;
+        require(len > 0 && len == _increaseAmounts.length, "Input array mismatch");
         for (uint i = 0; i < len; i++) {
-            basket.bassets[_bAssetIndices[i]].poolBalance =
-            basket.bassets[_bAssetIndices[i]].poolBalance.add(_increaseAmount[i]);
+            uint8 index = _bAssetIndices[i];
+            Basset memory bAsset = _getBasset(index);
+            uint256 amount = _increaseAmounts[i];
+            bAsset.poolBalance = bAsset.poolBalance.add(amount);
         }
     }
 
@@ -126,21 +131,23 @@ InitializableReentrancyGuard
     onlyHasset
     nonReentrant
     {
-        basket.bassets[_bAssetIndex].poolBalance =
-        basket.bassets[_bAssetIndex].poolBalance.sub(_decreaseAmount);
+        Basset memory bAsset = _getBasset(_bAssetIndex);
+        bAsset.poolBalance = bAsset.poolBalance.sub(_decreaseAmount);
     }
 
     function decreasePoolBalances(
         uint8[] calldata _bAssetIndices,
-        uint256[] calldata _decreaseAmount)
+        uint256[] calldata _decreaseAmounts)
     external
     onlyHasset
     nonReentrant
     {
         uint256 len = _bAssetIndices.length;
+        require(len > 0 && len == _decreaseAmounts.length, "Input array mismatch");
         for (uint i = 0; i < len; i++) {
-            basket.bassets[_bAssetIndices[i]].poolBalance =
-            basket.bassets[_bAssetIndices[i]].poolBalance.sub(_decreaseAmount[i]);
+            uint8 index = _bAssetIndices[i];
+            Basset memory bAsset = _getBasset(index);
+            bAsset.poolBalance = bAsset.poolBalance.sub(_decreaseAmounts[i]);
         }
     }
 
@@ -161,8 +168,8 @@ InitializableReentrancyGuard
     onlyHasset
     nonReentrant
     {
-        basket.bassets[_bAssetIndex].savingBalance =
-        basket.bassets[_bAssetIndex].savingBalance.add(_increaseAmount);
+        Basset memory bAsset = _getBasset(_bAssetIndex);
+        bAsset.savingBalance = bAsset.savingBalance.add(_increaseAmount);
     }
 
     /**
@@ -180,9 +187,11 @@ InitializableReentrancyGuard
     nonReentrant
     {
         uint256 len = _bAssetIndices.length;
+        require(len > 0 && len == _increaseAmount.length, "Input array mismatch");
         for (uint i = 0; i < len; i++) {
-            basket.bassets[_bAssetIndices[i]].savingBalance =
-            basket.bassets[_bAssetIndices[i]].savingBalance.add(_increaseAmount[i]);
+            uint8 index = _bAssetIndices[i];
+            Basset memory bAsset = _getBasset(index);
+            bAsset.savingBalance = bAsset.savingBalance.add(_increaseAmount[i]);
         }
     }
 
@@ -199,8 +208,8 @@ InitializableReentrancyGuard
     onlyHasset
     nonReentrant
     {
-        basket.bassets[_bAssetIndex].savingBalance =
-        basket.bassets[_bAssetIndex].savingBalance.sub(_decreaseAmount);
+        Basset memory bAsset = _getBasset(_bAssetIndex);
+        bAsset.savingBalance = bAsset.savingBalance.sub(_decreaseAmount);
     }
 
     /**
@@ -210,63 +219,20 @@ InitializableReentrancyGuard
      */
     function decreaseSavingBalances(
         uint8[] calldata _bAssetIndices,
-        uint256[] calldata _decreaseAmount
+        uint256[] calldata _decreaseAmounts
     )
     external
     onlyHasset
     nonReentrant
     {
         uint256 len = _bAssetIndices.length;
+        require(len > 0 && len == _decreaseAmounts.length, "Input array mismatch");
         for (uint i = 0; i < len; i++) {
-            basket.bassets[_bAssetIndices[i]].savingBalance =
-            basket.bassets[_bAssetIndices[i]].savingBalance.sub(_decreaseAmount[i]);
+            uint8 index = _bAssetIndices[i];
+            Basset memory bAsset = _getBasset(index);
+            bAsset.savingBalance = bAsset.savingBalance.sub(_decreaseAmounts[i]);
         }
     }
-
-    /**
-     * @dev Called by mAsset to calculate how much interest has been generated in the basket
-     *      and withdraw it. Cycles through the connected platforms to check the balances.
-     * @return interestCollected   Total amount of interest collected, in hAsset terms
-     * @return gains               Array of bAsset units gained
-     */
-    function collectInterest()
-    external
-    onlyHasset
-    whenNotPaused
-    nonReentrant
-    returns (uint256 interestCollected, uint256[] memory gains)
-    {
-        // Get basket details
-        (Basset[] memory allBassets, uint256 count) = _getBassets();
-        gains = new uint256[](count);
-        interestCollected = 0;
-
-        // foreach bAsset
-        for (uint8 i = 0; i < count; i++) {
-            Basset memory b = allBassets[i];
-            // call each integration to `checkBalance`
-            uint256 balance = IPlatformIntegration(integrations[i]).checkBalance(b.addr);
-            uint256 savingBalance = b.savingBalance;
-            uint256 oldPlatformBalance = b.platformBalance;
-            if (oldPlatformBalance <= 0) {
-                oldPlatformBalance = savingBalance;
-            }
-
-            // accumulate interest
-            if (balance > oldPlatformBalance && b.status == BassetStatus.Normal) {
-                // Update balance
-                basket.bassets[i].platformBalance = balance;
-
-                uint256 interestDelta = balance.sub(oldPlatformBalance);
-                gains[i] = interestDelta;
-
-                interestCollected = interestCollected.add(interestDelta);
-            } else {
-                gains[i] = 0;
-            }
-        }
-    }
-
 
     /***************************************
                 BASKET MANAGEMENT
@@ -375,6 +341,7 @@ InitializableReentrancyGuard
 
         require(bAsset.poolBalance == 0, "bAsset pool must be empty");
         require(bAsset.savingBalance == 0, "bAsset saving must be empty");
+        require(bAsset.feeBalance == 0, "bAsset fee must be empty");
         require(bAsset.status != BassetStatus.Liquidating, "bAsset must be active");
 
         uint8 lastIndex = uint8(len.sub(1));
@@ -496,11 +463,11 @@ InitializableReentrancyGuard
     )
     external
     whenNotPaused
-    returns (ForgePropsMulti memory props)
+    returns (BassetPropsMulti memory props)
     {
         // Pass the fetching logic to the internal view func to reduce SLOAD cost
         (Basset[] memory bAssets, uint8[] memory indexes, address[] memory integrators) = _fetchForgeBassets(_bAssets);
-        props = ForgePropsMulti({
+        props = BassetPropsMulti({
             isValid : true,
             bAssets : bAssets,
             integrators : integrators,
@@ -509,15 +476,15 @@ InitializableReentrancyGuard
     }
 
     /**
-     * @dev Prepare given bAsset addresses for RedeemMulti. Currently returns integrator
+     * @dev Prepare given bAsset addresses for props multi. Currently returns integrator
      *      and essential minting info for each bAsset
      * @return props     Struct of all relevant Forge information
      */
-    function prepareRedeemMulti()
+    function preparePropsMulti()
     external
     view
     whenNotPaused
-    returns (RedeemPropsMulti memory props)
+    returns (BassetPropsMulti memory props)
     {
         (Basset[] memory bAssets, uint256 len) = _getBassets();
         address[] memory orderedIntegrators = new address[](len);
@@ -526,7 +493,7 @@ InitializableReentrancyGuard
             orderedIntegrators[i] = integrations[i];
             indexes[i] = i;
         }
-        props = RedeemPropsMulti({
+        props = BassetPropsMulti({
             bAssets : bAssets,
             integrators : orderedIntegrators,
             indexes : indexes
@@ -637,6 +604,7 @@ InitializableReentrancyGuard
     view
     returns (Basset memory bAsset)
     {
+        require(_bAssetIndex >= 0 && _bAssetIndex < basket.bassets.length, "bAsset index invalid");
         bAsset = basket.bassets[_bAssetIndex];
     }
 

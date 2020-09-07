@@ -43,16 +43,9 @@ interface HassetStructs {
         uint8 index;
     }
 
-    /** @dev All details needed to Forge with multiple bAssets */
-    struct ForgePropsMulti {
+    /** @dev All details needed to handle with multiple bAssets */
+    struct BassetPropsMulti {
         bool isValid; // Flag to signify that forge bAssets have passed validity check
-        Basset[] bAssets;
-        address[] integrators;
-        uint8[] indexes;
-    }
-
-    /** @dev All details needed for proportionate Redemption */
-    struct RedeemPropsMulti {
         Basset[] bAssets;
         address[] integrators;
         uint8[] indexes;

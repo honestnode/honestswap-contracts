@@ -24,6 +24,7 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
     uint256 private totalWeight;
     // Amount of weight for each saver
     mapping(address => uint256) private saverWeights;
+    mapping(address => uint256) private saverBonusWeights;
 
     modifier onlyWeightManager() {
         require(_savingsManager() == msg.sender, "Must be weight manager");
@@ -47,12 +48,13 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
     returns (uint256 weight){
         require(_saver != address(0), "Must be a valid saver");
 
-        uint256 weight = saverWeights[msg.sender];
-        return weight;
+        uint256 savingWeight = saverWeights[msg.sender];
+        uint256 bonusWeight = saverWeights[msg.sender];
+        weight = saverWeights + bonusWeight;
     }
 
-    function getWeights(address[] _savers) external view
-    returns (uint256[] weights){
+    function getWeights(address[] calldata _savers) external view
+    returns (uint256[] memory weights){
         uint256 len = _savers.length;
         require(len > 0, "Input array is empty");
 
@@ -60,8 +62,10 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
 
         for (uint256 i = 0; i < len; i++) {
             address saver = _savers[i];
-            uint256 weight = saverWeights[_saver];
-            weights[i] = weight;
+            uint256 savingWeight = saverWeights[_saver];
+            uint256 bonusWeight = saverWeights[_saver];
+
+            weights[i] = savingWeight + bonusWeight;
         }
 
         return weights;
@@ -70,102 +74,160 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
     /**
      * @dev Add saver's weight
      * @param _saver    saver address
-     * @param _weight   weight to be added
+     * @param _savingWeight   saving weight to be added
+     * @param _bonusWeight   bonus weight to be added
      */
-    function addWeight(address _saver, uint256 _weight) external nonReentrant
+    function addWeight(address _saver, uint256 _savingWeight, uint256 _bonusWeight) external nonReentrant
     onlySavingsManager
     returns (uint256 newWeight){
         require(_saver != address(0), "Must be a valid saver");
-        require(_weight > 0, "Weight must not be 0");
+        require(_savingWeight > 0 || _bonusWeight > 0, "Weight must not be 0");
 
+        uint256 oldWeight = 0;
+        newWeight = 0;
         // add weight to saver
-        uint256 oldWeight = saverWeights[msg.sender];
-        uint256 newWeight = oldWeight.add(_weight);
-        saverWeights[msg.sender] = newWeight;
-        // update total weight
-        totalWeight = totalWeight.add(_weight);
-
+        if (_savingWeight > 0) {
+            uint256 oldSavingWeight = saverWeights[_saver];
+            oldWeight = oldWeight.add(oldSavingWeight);
+            uint256 newSavingWeight = oldSavingWeight.add(_savingWeight);
+            newWeight = newWeight.add(newSavingWeight);
+            saverWeights[_saver] = newSavingWeight;
+            // update total weight
+            totalWeight = totalWeight.add(_savingWeight);
+        }
+        if (_bonusWeight > 0) {
+            uint256 oldBonusWeight = saverBonusWeights[_saver];
+            oldWeight = oldWeight.add(oldBonusWeight);
+            uint256 newBonusWeight = oldBonusWeight.add(_bonusWeight);
+            newWeight = newWeight.add(newBonusWeight);
+            saverBonusWeights[_saver] = newBonusWeight;
+            totalWeight = totalWeight.add(_bonusWeight);
+        }
         emit WeightUpdated(_saver, newWeight, oldWeight);
-
-        return newWeight;
     }
 
-    function addWeights(address[] _savers, uint256[] _weights) external
+    function addWeights(address[] calldata _savers, uint256[] calldata _savingWeights, uint256[] calldata _bonusWeights) external
     nonReentrant
     onlySavingsManager
-    returns (uint256[] newWeights){
-        uint256 len = _weights.length;
-        require(len > 0 && len == _savers.length, "Input array mismatch");
+    returns (uint256[] memory newWeights){
+        uint256 len = _savers.length;
+        uint256 len1 = _savingWeights.length;
+        uint256 len2 = _bonusWeights.length;
+        require((len > 0 && len == len1) || (len > 0 && len == len2), "Input array mismatch");
 
-        uint256[] weights = new uint256[](len);
+        newWeights = new uint256[](len);
 
         for (uint256 i = 0; i < len; i++) {
             address saver = _savers[i];
-            uint256 weightToAdd = _weights[i];
-            if (weightToAdd > 0 && saver != address(0)) {
+            uint256 savingWeightToAdd = _savingWeights[i];
+            uint256 bonusWeightToAdd = _bonusWeights[i];
+            uint256 oldWeight = 0;
+            uint256 newWeight = 0;
+            if (savingWeightToAdd > 0 && saver != address(0)) {
                 // add weight to saver
-                uint256 oldWeight = saverWeights[saver];
-                uint256 newWeight = oldWeight.add(weightToAdd);
-                saverWeights[saver] = newWeight;
+                uint256 oldSavingWeight = saverWeights[saver];
+                oldWeight = oldWeight.add(oldSavingWeight);
+                uint256 newSavingWeight = oldSavingWeight.add(savingWeightToAdd);
+                saverWeights[saver] = newSavingWeight;
+                newWeight = newWeight.add(newSavingWeight);
                 // update total weight
-                totalWeight = totalWeight.add(weightToAdd);
-
-                weights[i] = newWeight;
-
-                emit WeightUpdated(saver, newWeight, oldWeight);
+                totalWeight = totalWeight.add(savingWeightToAdd);
             }
-        }
+            if (bonusWeightToAdd > 0 && saver != address(0)) {
+                // add weight to saver
+                uint256 oldBonusWeight = saverBonusWeights[saver];
+                oldWeight = oldWeight.add(oldBonusWeight);
+                uint256 newBonusWeight = oldBonusWeight.add(bonusWeightToAdd);
+                saverBonusWeights[saver] = newBonusWeight;
+                newWeight = newWeight.add(newBonusWeight);
 
-        return weights;
+                // update total weight
+                totalWeight = totalWeight.add(bonusWeightToAdd);
+            }
+            newWeights[i] = newWeight;
+            emit WeightUpdated(saver, newWeight, oldWeight);
+        }
     }
 
-    function minusWeight(address _saver, uint256 _weight) external
+    function minusWeight(address _saver, uint256 _savingWeight, uint256 _bonusWeight) external
     nonReentrant
     onlySavingsManager
     returns (uint256 newWeight){
         require(_saver != address(0), "Must be a valid saver");
-        require(_weight > 0, "Weight must not be 0");
+        require(_savingWeight > 0 || _bonusWeight > 0, "Weight must not be 0");
 
+        newWeight = 0;
         // add weight to saver
-        uint256 oldWeight = saverWeights[msg.sender];
-        require(oldWeight > 0, "Old weight must not be 0");
-        require(oldWeight >= _weight, "Old weight not enough to minus");
-        uint256 newWeight = oldWeight.sub(_weight);
-        saverWeights[msg.sender] = newWeight;
-        // update total weight
-        totalWeight = totalWeight.sub(_weight);
-
+        uint256 oldSavingWeight = saverWeights[_saver];
+        uint256 oldBonusWeight = saverBonusWeights[_saver];
+        uint256 oldWeight = oldSavingWeight.add(oldBonusWeight);
+        if (_savingWeight > 0) {
+            require(oldSavingWeight > 0, "Old saving weight must not be 0");
+            require(oldSavingWeight >= _savingWeight, "Old saving weight not enough to minus");
+            uint256 newSavingWeight = oldSavingWeight.sub(_savingWeight);
+            newWeight = newWeight.add(newSavingWeight);
+            saverWeights[_saver] = newSavingWeight;
+            // update total weight
+            totalWeight = totalWeight.sub(_savingWeight);
+        }
+        if (_bonusWeight > 0) {
+            require(oldBonusWeight > 0, "Old bonus weight must not be 0");
+            require(oldBonusWeight >= _bonusWeight, "Old bonus weight not enough to minus");
+            uint256 newBonusWeight = oldBonusWeight.sub(_bonusWeight);
+            newWeight = newWeight.add(newBonusWeight);
+            saverBonusWeights[_saver] = newBonusWeight;
+            // update total weight
+            totalWeight = totalWeight.sub(_bonusWeight);
+        }
         emit WeightUpdated(_saver, newWeight, oldWeight);
-
-        return newWeight;
     }
 
-    function minusWeights(address[] _savers, uint256[] _weights) external nonReentrant
+    function minusWeights(address[] calldata _savers, uint256[] calldata _savingWeights, uint256[] calldata _bonusWeights)
+    external
+    nonReentrant
     onlySavingsManager
-    returns (uint256[] newWeights){
-        uint256 len = _weights.length;
-        require(len > 0 && len == _savers.length, "Input array mismatch");
+    returns (uint256[] memory newWeights){
+        uint256 len = _savers.length;
+        uint256 len1 = _savingWeights.length;
+        uint256 len2 = _bonusWeights.length;
+        require((len > 0 && len == len1) || (len > 0 && len == len2), "Input array mismatch");
 
-        uint256[] weights = new uint256[](len);
+        newWeights = new uint256[](len);
 
         for (uint256 i = 0; i < len; i++) {
             address saver = _savers[i];
-            uint256 weightToSub = _weights[i];
-            if (weightToSub > 0 && saver != address(0)) {
+            uint256 savingWeightToSub = _savingWeights[i];
+            uint256 bonusWeightToSub = _bonusWeights[i];
+            uint256 oldWeight = 0;
+            uint256 newWeight = 0;
+            if (savingWeightToSub > 0 && saver != address(0)) {
                 // add weight to saver
-                uint256 oldWeight = saverWeights[saver];
-                if (oldWeight > 0 && oldWeight >= weightToSub) {
-                    uint256 newWeight = oldWeight.sub(weightToSub);
-                    saverWeights[saver] = newWeight;
-                    // update total weight
-                    totalWeight = totalWeight.sub(weightToSub);
-                    weights[i] = newWeight;
-
-                    emit WeightUpdated(saver, newWeight, oldWeight);
-                }
+                uint256 oldSavingWeight = saverWeights[saver];
+                require(oldSavingWeight > savingWeightToSub, "Not enough saving weight to sub");
+                oldWeight = oldWeight.add(oldSavingWeight);
+                uint256 newSavingWeight = oldSavingWeight.sub(savingWeightToSub);
+                saverWeights[saver] = newSavingWeight;
+                newWeight = newWeight.add(newSavingWeight);
+                // update total weight
+                require(totalWeight > savingWeightToSub, "Not enough total weight to sub");
+                totalWeight = totalWeight.sub(savingWeightToSub);
             }
+            if (bonusWeightToSub > 0 && saver != address(0)) {
+                // add weight to saver
+                uint256 oldBonusWeight = saverBonusWeights[saver];
+                require(oldBonusWeight > bonusWeightToSub, "Not enough bonus weight to sub");
+                oldWeight = oldWeight.add(oldBonusWeight);
+                uint256 newBonusWeight = oldBonusWeight.sub(bonusWeightToSub);
+                saverBonusWeights[saver] = newBonusWeight;
+                newWeight = newWeight.add(newBonusWeight);
+
+                // update total weight
+                require(totalWeight > bonusWeightToSub, "Not enough total weight to sub");
+                totalWeight = totalWeight.sub(bonusWeightToSub);
+            }
+            newWeights[i] = newWeight;
+            emit WeightUpdated(saver, newWeight, oldWeight);
         }
-        return weights;
     }
 
     function clearWeight(address _saver) external nonReentrant
@@ -173,11 +235,20 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
     returns (bool result){
         require(_saver != address(0), "Must be a valid saver");
 
-        uint256 oldWeight = saverWeights[_saver];
-        if (oldWeight > 0) {
+        uint256 oldSavingWeight = saverWeights[_saver];
+        uint256 oldBonusWeight = saverBonusWeights[_saver];
+        uint256 oldWeight = oldSavingWeight.add(oldBonusWeight);
+        if (oldSavingWeight > 0) {
             saverWeights[_saver] = 0;
-            totalWeight = totalWeight.sub(oldWeight);
+            require(totalWeight > oldSavingWeight, "Not enough total weight to sub");
+            totalWeight = totalWeight.sub(oldSavingWeight);
         }
+        if (oldBonusWeight > 0) {
+            saverBonusWeights[_saver] = 0;
+            require(totalWeight > oldBonusWeight, "Not enough total weight to sub");
+            totalWeight = totalWeight.sub(oldBonusWeight);
+        }
+        emit WeightUpdated(_saver, 0, oldWeight);
         return true;
     }
 

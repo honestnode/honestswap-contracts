@@ -12,16 +12,16 @@ interface IHonestWeight {
     function getWeights(address[] calldata _savers) external view
     returns (uint256[] memory weights);
 
-    function addWeight(address _saver, uint256 _weight) external
+    function addWeight(address _saver, uint256 _savingWeight, uint256 _bonusWeight) external
     returns (uint256 newWeight);
 
-    function addWeights(address[] calldata _savers, uint256[] calldata _weights) external
+    function addWeights(address[] calldata _savers, uint256[] calldata _savingWeights, uint256[] calldata _bonusWeights) external
     returns (uint256[] memory newWeights);
 
-    function minusWeight(address _saver, uint256 _weight) external
+    function minusWeight(address _saver, uint256 _savingWeight, uint256 _bonusWeight) external
     returns (uint256 newWeight);
 
-    function minusWeights(address[] calldata _savers, uint256[] calldata _weights) external
+    function minusWeights(address[] calldata _savers, uint256[] calldata _savingWeights, uint256[] calldata _bonusWeights) external
     returns (uint256[] memory newWeights);
 
     function clearWeight(address _saver) external

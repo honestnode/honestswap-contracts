@@ -16,10 +16,13 @@ HassetStructs,
 InitializablePausableModule,
 InitializableReentrancyGuard {
 
+    using SafeMath for uint256;
+    using HonestMath for uint256;
+
+    event SwapFeeChanged(uint256 fee);
+
     mapping(address => uint8) private bAssetsMap;
-
     address[] public integrations;
-
     uint256 private swapFee;// 0.1%
 
     function initialize(
@@ -97,6 +100,65 @@ InitializableReentrancyGuard {
         output = swapOutput;
 
         emit Swapped(msg.sender, _input, _output, swapOutput, _recipient);
+    }
+
+
+    /**
+     * @dev Determines both if a trade is valid, and the expected fee or output.
+     * Swap is valid if it does not result in the input asset exceeding its maximum weight.
+     * @param _input        bAsset to deposit
+     * @param _output       Asset to receive - bAsset or hAsset(this)
+     * @param _quantity     Units of input bAsset to swap
+     * @return valid        Bool to signify that swap is current valid
+     * @return reason       If swap is invalid, this is the reason
+     * @return output       Units of _output asset the trade would return
+     */
+    function getSwapOutput(
+        address _input,
+        address _output,
+        uint256 _quantity
+    )
+    external
+    view
+    returns (bool, string memory, uint256 output)
+    {
+        require(_input != address(0) && _output != address(0), "Invalid swap asset addresses");
+        require(_input != _output, "Cannot swap the same asset");
+
+        bool isMint = _output == address(this);
+        uint256 quantity = _quantity;
+
+        // 1. Get relevant asset data
+        (bool isValid, string memory reason, BassetDetails memory inputDetails, BassetDetails memory outputDetails) =
+        basketManager.prepareSwapBassets(_input, _output, isMint);
+        if (!isValid) {
+            return (false, reason, 0);
+        }
+
+        // 2. check if trade is valid
+        // 2.1. If output is hAsset(this), then calculate a simple mint
+        if (isMint) {
+            // Validate mint
+            (isValid, reason) = forgeValidator.validateMint(totalSupply(), inputDetails.bAsset, quantity);
+            if (!isValid) return (false, reason, 0);
+            // Simply cast the quantity to hAsset
+            output = quantity.mulRatioTruncate(inputDetails.bAsset.ratio);
+            return (true, "", output);
+        }
+        // 2.2. If a bAsset swap, calculate the validity, output and fee
+        else {
+            (bool swapValid, string memory swapValidityReason, uint256 swapOutput, bool applySwapFee) =
+            forgeValidator.validateSwap(totalSupply(), inputDetails.bAsset, outputDetails.bAsset, quantity);
+            if (!swapValid) {
+                return (false, swapValidityReason, 0);
+            }
+
+            // 3. Return output and fee, if any
+            if (applySwapFee) {
+                (, swapOutput) = _calcSwapFee(swapOutput, swapFee);
+            }
+            return (true, "", swapOutput);
+        }
     }
 
     /**

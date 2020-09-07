@@ -1,16 +1,19 @@
 pragma solidity 0.5.16;
 
+import {HassetStructs} from "./HassetStructs.sol";
+
 /**
  * @title   IHonestSaving
  * @author  HonestSwap. Ltd.
  */
-interface IHonestSaving {
+contract IHonestSaving is HassetStructs {
 
-    function deposit(uint256 _amount) external returns (uint256 creditsIssued);
+    function deposit(uint256 _amount) external returns (uint256 depositAmount);
 
     function redeem(uint256 _amount) external returns (uint256 hAssetReturned);
 
     function querySavingBalance() external returns (uint256 hAssetBalance);
 
-    function queryHUsdSavingApy() external returns (uint256 apy);
+    function queryHUsdSavingApy() external returns (uint256 apy, uint256 apyTimestamp);
+
 }
