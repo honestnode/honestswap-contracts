@@ -218,7 +218,7 @@ InitializableReentrancyGuard
     /**
      * @dev Called by hAsset after redeeming tokens. Simply reduce the balance in the vault
      * @param _bAssetIndices    Array of bAsset indexes
-     * @param _decreaseAmount   Units withdrawn
+     * @param _decreaseAmounts   Units withdrawn
      */
     function decreaseSavingBalances(
         uint8[] calldata _bAssetIndices,
@@ -466,7 +466,6 @@ InitializableReentrancyGuard
      */
     function prepareSwapBassets(address _input, address _output, bool _isMint)
     external
-    view
     whenNotPaused
     returns (bool, string memory, BassetDetails memory, BassetDetails memory)
     {
@@ -536,7 +535,6 @@ InitializableReentrancyGuard
      */
     function preparePropsMulti()
     external
-    view
     whenNotPaused
     returns (BassetPropsMulti memory props)
     {
@@ -619,7 +617,6 @@ InitializableReentrancyGuard
      */
     function getBasset(address _bAsset)
     external
-    view
     returns (Basset memory bAsset)
     {
         (bool exists, uint8 index) = _isAssetInBasket(_bAsset);

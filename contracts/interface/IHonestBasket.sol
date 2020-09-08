@@ -60,15 +60,15 @@ contract IHonestBasket is HassetStructs {
     function prepareForgeBasset(address _token) external
     returns (bool isValid, BassetDetails memory bInfo);
 
-    function prepareSwapBassets(address _input, address _output, bool _isMint) external view
+    function prepareSwapBassets(address _input, address _output, bool _isMint) external
     returns (bool, string memory, BassetDetails memory, BassetDetails memory);
 
     function prepareForgeBassets(address[] calldata _bAssets) external
     returns (BassetPropsMulti memory props);
 
-    function preparePropsMulti() external view returns (BassetPropsMulti memory props);
+    function preparePropsMulti() external returns (BassetPropsMulti memory props);
 
-    function getBasset(address _token) external view returns (Basset memory bAsset);
+    function getBasset(address _token) external returns (Basset memory bAsset);
 
 //    function getBassets() external view returns (Basset[] memory bAssets, uint256 len);
 

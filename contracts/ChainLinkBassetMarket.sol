@@ -51,7 +51,7 @@ contract ChainLinkBassetMarket is Initializable, IBassetMarket, InitializableMod
      * @dev Query bAsset's current price
      * @param _bAsset    bAsset address
      */
-    function getBassetPrice(address _bAsset) external view
+    function getBassetPrice(address _bAsset) external
     returns (uint256 price, uint256 decimals){
         require(_bAsset != address(0), "Must be a valid _bAsset");
 
@@ -69,7 +69,7 @@ contract ChainLinkBassetMarket is Initializable, IBassetMarket, InitializableMod
         }
     }
 
-    function getBassetsPrice(address[] calldata _bAssets) external view
+    function getBassetsPrice(address[] calldata _bAssets) external
     returns (uint256[] memory prices, uint256[] memory decimals){
         uint256 len = _bAssets.length;
         require(len > 0, "Input array is empty");
@@ -101,7 +101,7 @@ contract ChainLinkBassetMarket is Initializable, IBassetMarket, InitializableMod
 
     /**
      * @dev Query bAsset's current price with ChainLink
-     * @param _aggregator
+     * @param _aggregator ChainLink aggregator
      */
     function _queryLatestPrice(AggregatorV3Interface _aggregator) internal
     returns (uint256 price, uint256 decimals) {

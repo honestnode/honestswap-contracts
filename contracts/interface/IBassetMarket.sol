@@ -3,10 +3,10 @@ pragma experimental ABIEncoderV2;
 
 interface IBassetMarket {
 
-    function getBassetPrice(address _bAsset) external view
+    function getBassetPrice(address _bAsset) external
     returns (uint256 price, uint256 decimals);
 
-    function getBassetsPrice(address[] calldata _bAssets) external view
+    function getBassetsPrice(address[] calldata _bAssets) external
     returns (uint256[] memory prices, uint256[] memory decimals);
 
 //    function setBassetPrice(address _bAsset, uint256 _price) external;

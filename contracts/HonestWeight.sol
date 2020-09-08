@@ -33,9 +33,8 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
 
     /**
      * @dev Query total weight
-     * @param _saver   saver address
      */
-    function getTotalWeight() external view
+    function getTotalWeight() external
     returns (uint256 weight){
         return totalWeight;
     }
@@ -44,7 +43,7 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
      * @dev Query saver's weight
      * @param _saver   saver address
      */
-    function getWeight(address _saver) external view
+    function getWeight(address _saver) external
     returns (uint256 weight){
         require(_saver != address(0), "Must be a valid saver");
 
@@ -53,7 +52,7 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
         weight = savingWeight.add(bonusWeight);
     }
 
-    function getWeights(address[] calldata _savers) external view
+    function getWeights(address[] calldata _savers) external
     returns (uint256[] memory weights){
         uint256 len = _savers.length;
         require(len > 0, "Input array is empty");

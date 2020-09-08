@@ -3,13 +3,13 @@ pragma experimental ABIEncoderV2;
 
 interface IHonestWeight {
 
-    function getTotalWeight() external view
+    function getTotalWeight() external
     returns (uint256 weight);
 
-    function getWeight(address _saver) external view
+    function getWeight(address _saver) external
     returns (uint256 weight);
 
-    function getWeights(address[] calldata _savers) external view
+    function getWeights(address[] calldata _savers) external
     returns (uint256[] memory weights);
 
     function addWeight(address _saver, uint256 _savingWeight, uint256 _bonusWeight) external

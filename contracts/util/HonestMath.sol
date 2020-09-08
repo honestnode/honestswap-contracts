@@ -157,7 +157,7 @@ library HonestMath {
     /**
      * @dev Multiplies and truncates a token ratio, essentially flooring the result
      * @param x     Left hand operand to multiplication (i.e Exact quantity)
-     * @param ratio
+     * @param ratio scale
      * @return      Result after multiplying the two inputs and then dividing by the ratio scale
      */
     function mulRatioTruncate(uint256 x, uint256 ratio)
@@ -171,7 +171,7 @@ library HonestMath {
     /**
      * @dev Multiplies and truncates a token ratio, rounding up the result
      * @param x     Left hand input to multiplication (i.e Exact quantity)
-     * @param ratio
+     * @param ratio scale
      * @return      Result after multiplying the two inputs and then dividing by the shared
      *              ratio scale, rounded up to the closest base unit.
      */
@@ -193,7 +193,7 @@ library HonestMath {
     /**
      * @dev Precisely divides two ratioed units, by first scaling the left hand operand
      * @param x     Left hand operand in division
-     * @param ratio
+     * @param ratio scale
      * @return      Result after multiplying the left operand by the scale, and
      *              executing the division on the right hand input.
      */
