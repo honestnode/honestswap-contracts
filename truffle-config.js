@@ -6,7 +6,7 @@ const mnemonic = ''; // change to correct mnemonic
 module.exports = {
   // See <http://truffleframework.com/docs/advanced/configuration>
   // for more about customizing your Truffle configuration!
-  contracts_directory: './contracts/mock',
+  contracts_directory: './contracts',
   migrations_directory: './migrations',
   networks: {
     ropsten: {
@@ -20,7 +20,7 @@ module.exports = {
   },
   compilers: {
     solc: {
-      version: '^0.5.0'
+      version: '0.5.16'
     }
   }
 }
