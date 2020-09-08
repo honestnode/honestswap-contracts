@@ -220,7 +220,7 @@ InitializableReentrancyGuard {
         require(len > 0 && len == _bAssets.length, "Input array mismatch");
 
         // Load only needed bAssets in array
-        ForgePropsMulti memory props = honestBasket.prepareForgeBassets(_bAssets);
+        BassetPropsMulti memory props = honestBasket.prepareForgeBassets(_bAssets);
         if (!props.isValid) return 0;
 
         uint256 hAssetQuantity = 0;
@@ -384,7 +384,7 @@ InitializableReentrancyGuard {
         Basket memory basket = honestBasket.getBasket();
 
         // Prepare relevant data
-        ForgePropsMulti memory props = honestBasket.prepareForgeBassets(_bAssets);
+        BassetPropsMulti memory props = honestBasket.prepareForgeBassets(_bAssets);
         if (!props.isValid) return 0;
 
         // Validation

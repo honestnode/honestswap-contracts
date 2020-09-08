@@ -6,7 +6,7 @@ const mnemonic = ''; // change to correct mnemonic
 module.exports = {
   // See <http://truffleframework.com/docs/advanced/configuration>
   // for more about customizing your Truffle configuration!
-  contracts_directory: './all-in-one',
+  contracts_directory: './contracts',
   migrations_directory: './migrations',
   networks: {
     ropsten: {

@@ -234,6 +234,56 @@ InitializableReentrancyGuard
         }
     }
 
+    function mintForBalance(uint8[] calldata _bAssetIndices, uint256[] calldata _amounts)
+    external
+    nonReentrant {
+        uint256 len = _bAssetIndices.length;
+        require(len > 0 && len == _amounts.length, "Input array mismatch");
+        for (uint i = 0; i < len; i++) {
+            uint8 index = _bAssetIndices[i];
+            Basset memory bAsset = _getBasset(index);
+            bAsset.poolBalance = bAsset.poolBalance.add(_amounts[i]);
+        }
+    }
+
+    function withdrawForBalance(uint8[] calldata _bAssetIndices, uint256[] calldata _amounts)
+    external
+    nonReentrant {
+        uint256 len = _bAssetIndices.length;
+        require(len > 0 && len == _amounts.length, "Input array mismatch");
+        for (uint i = 0; i < len; i++) {
+            uint8 index = _bAssetIndices[i];
+            Basset memory bAsset = _getBasset(index);
+            bAsset.poolBalance = bAsset.poolBalance.sub(_amounts[i]);
+        }
+    }
+
+    function depositForBalance(uint8[] calldata _bAssetIndices, uint256[] calldata _amounts)
+    external
+    nonReentrant {
+        uint256 len = _bAssetIndices.length;
+        require(len > 0 && len == _amounts.length, "Input array mismatch");
+        for (uint i = 0; i < len; i++) {
+            uint8 index = _bAssetIndices[i];
+            Basset memory bAsset = _getBasset(index);
+            bAsset.savingBalance = bAsset.savingBalance.add(_amounts[i]);
+            bAsset.poolBalance = bAsset.poolBalance.sub(_amounts[i]);
+        }
+    }
+
+    function redeemForBalance(uint8[] calldata _bAssetIndices, uint256[] calldata _amounts)
+    external
+    nonReentrant {
+        uint256 len = _bAssetIndices.length;
+        require(len > 0 && len == _amounts.length, "Input array mismatch");
+        for (uint i = 0; i < len; i++) {
+            uint8 index = _bAssetIndices[i];
+            Basset memory bAsset = _getBasset(index);
+            bAsset.savingBalance = bAsset.savingBalance.sub(_amounts[i]);
+            bAsset.poolBalance = bAsset.poolBalance.add(_amounts[i]);
+        }
+    }
+
     /***************************************
                 BASKET MANAGEMENT
     ****************************************/
