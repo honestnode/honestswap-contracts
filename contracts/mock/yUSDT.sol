@@ -6,9 +6,9 @@ import '@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol';
 import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
-import "./hToken.sol";
+import "./yToken.sol";
 
-contract hDAI is ERC20, ERC20Detailed, ReentrancyGuard, Ownable, hToken {
+contract yUSDT is ERC20, ERC20Detailed, ReentrancyGuard, Ownable, yToken {
 
     using SafeERC20 for IERC20;
     using Address for address;
@@ -16,8 +16,8 @@ contract hDAI is ERC20, ERC20Detailed, ReentrancyGuard, Ownable, hToken {
 
     address public dToken;
 
-    constructor () public ERC20Detailed("iearn DAI", "yDAI", 18) {
-        dToken = address(0x8AeBEb4C8dAaE29BC46D17082C93EB8c336294cC);
+    constructor () public ERC20Detailed("iearn USDT", "yUSDT", 6) {
+        dToken = address(0x12C87565b0669Fb4211c0fd6aFD1C87d44D22ed2);
     }
 
     function setDToken(address _dToken) external onlyOwner nonReentrant {
