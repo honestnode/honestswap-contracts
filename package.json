@@ -5,7 +5,9 @@
   "description": "HonestSwap Contracts",
   "author": "HonestSwap. Ltd.",
   "license": "AGPL-3.0-or-later",
-  "bin": {},
+  "bin": {
+    "truffle": "./node_modules/.bin/truffle"
+  },
   "scripts": {
     "compile": "truffle compile",
     "migrate:ropsten": "truffle migrate --network ropsten"
@@ -15,9 +17,7 @@
     "@openzeppelin/contracts": "^2.5.0",
     "@openzeppelin/upgrades": "^2.7.2",
     "@truffle/hdwallet-provider": "^1.0.34",
-    "solc": "^0.5.16",
-    "truffle": "^5.1.22",
-    "web3": "^1.2.6"
+    "truffle": "^5.1.22"
   },
   "dependencies": {}
 }
