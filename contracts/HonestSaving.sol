@@ -148,12 +148,12 @@ InitializableReentrancyGuard
         emit SavingRedeemed(saver, _amount, newSavingBalance);
     }
 
-    function querySavingBalance() external
+    function querySavingBalance() external view
     returns (uint256 hAssetBalance){
         hAssetBalance = totalSavings;
     }
 
-    function queryHUsdSavingApy() external
+    function queryHUsdSavingApy() external view
     returns (uint256 apy, uint256 apyTimestamp){
         apy = lastApy;
         apyTimestamp = lastApyTs;
