@@ -1,5 +1,7 @@
 pragma solidity 0.5.16;
+pragma experimental ABIEncoderV2;
 
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {Initializable} from "@openzeppelin/upgrades/contracts/Initializable.sol";
 import {InitializablePausableModule} from "./common/InitializablePausableModule.sol";
 import {InitializableReentrancyGuard} from "./common/InitializableReentrancyGuard.sol";
@@ -12,6 +14,8 @@ IHonestBasket,
 InitializablePausableModule,
 InitializableReentrancyGuard
 {
+
+    using SafeMath for uint256;
 
     // Events for Basket composition changes
     event BassetAdded(address indexed bAsset, address integrator);
@@ -72,7 +76,6 @@ InitializableReentrancyGuard
                 _hasTransferFees[i]
             );
         }
-        _setBasketWeights(_bAssets, _weights, true);
     }
 
     /**
@@ -339,6 +342,7 @@ InitializableReentrancyGuard
             status : BassetStatus.Normal,
             poolBalance : 0,
             savingBalance : 0,
+            feeBalance : 0,
             platformBalance : 0,
             isTransferFeeCharged : _isTransferFeeCharged
             }));
@@ -544,6 +548,7 @@ InitializableReentrancyGuard
             indexes[i] = i;
         }
         props = BassetPropsMulti({
+            isValid : true,
             bAssets : bAssets,
             integrators : orderedIntegrators,
             indexes : indexes

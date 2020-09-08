@@ -1,8 +1,9 @@
 pragma solidity 0.5.16;
 
-import { SafeMath }  from "@openzeppelin/contracts/math/SafeMath.sol";
-import { SafeERC20 }  from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import { IERC20 }     from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeMath}  from "@openzeppelin/contracts/math/SafeMath.sol";
+import {SafeERC20}  from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import {IERC20}     from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {HonestMath} from "./HonestMath.sol";
 
 /**
  * @title   HassetHelpers
@@ -22,24 +23,24 @@ library HassetHelpers {
         bool _erc20TransferFeeCharged,
         uint256 _qty
     )
-        internal
-        returns (uint256 receivedQty)
+    internal
+    returns (uint256 receivedQty)
     {
         receivedQty = _qty;
-        if(_erc20TransferFeeCharged) {
+        if (_erc20TransferFeeCharged) {
             uint256 balBefore = IERC20(_basset).balanceOf(_recipient);
             IERC20(_basset).safeTransferFrom(_sender, _recipient, _qty);
             uint256 balAfter = IERC20(_basset).balanceOf(_recipient);
-            receivedQty = StableMath.min(_qty, balAfter.sub(balBefore));
+            receivedQty = HonestMath.min(_qty, balAfter.sub(balBefore));
         } else {
             IERC20(_basset).safeTransferFrom(_sender, _recipient, _qty);
         }
     }
 
     function safeInfiniteApprove(address _asset, address _spender)
-        internal
+    internal
     {
         IERC20(_asset).safeApprove(_spender, 0);
-        IERC20(_asset).safeApprove(_spender, uint256(-1));
+        IERC20(_asset).safeApprove(_spender, uint256(- 1));
     }
 }

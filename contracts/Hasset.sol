@@ -13,6 +13,7 @@ import {IHasset} from "./interface/IHasset.sol";
 import {IHonestBasket} from "./interface/IHonestBasket.sol";
 import {IBassetMarket} from "./interface/IBassetMarket.sol";
 import {IHonestWeight} from "./interface/IHonestWeight.sol";
+import {IPlatformIntegration} from "./interface/IPlatformIntegration.sol";
 import {HassetHelpers} from "./util/HassetHelpers.sol";
 import {HonestMath} from "./util/HonestMath.sol";
 
@@ -162,12 +163,12 @@ InitializableReentrancyGuard {
         require(mintValid, reason);
 
         // transfer bAsset to basket
-        uint256 quantityTransferred = HassetHelpers.transferTokens(msg.sender, getBasketManager(), _bAsset, bInfo.bAsset.isTransferFeeCharged, _bAssetQuantity);
+        uint256 quantityTransferred = HassetHelpers.transferTokens(msg.sender, address(honestBasket), _bAsset, bInfo.bAsset.isTransferFeeCharged, _bAssetQuantity);
         // Log the pool increase
         honestBasket.increasePoolBalance(bInfo.index, quantityTransferred);
         // calc weight
         // query usd price for bAsset
-        (uint256 bAssetPrice, uint8 bAssetPriceDecimals) = bassetMarket.getBassetPrice(_bAsset);
+        (uint256 bAssetPrice, uint256 bAssetPriceDecimals) = bassetMarket.getBassetPrice(_bAsset);
         if (bAssetPrice > 0 && bAssetPriceDecimals > 0) {
             uint256 priceScale = 10 ** bAssetPriceDecimals;
             if (bAssetPrice > priceScale) {
@@ -193,7 +194,7 @@ InitializableReentrancyGuard {
         return quantityTransferred;
     }
 
-    function _validateMint(Basset calldata _bAsset)
+    function _validateMint(Basset memory _bAsset)
     internal
     returns (bool isValid, string memory reason)
     {
@@ -242,13 +243,13 @@ InitializableReentrancyGuard {
                 Basset memory bAsset = props.bAssets[i];
 
                 // transfer bAsset to basket
-                uint256 quantityTransferred = HassetHelpers.transferTokens(msg.sender, getBasketManager(), bAsset.addr, bAsset.isTransferFeeCharged, bAssetQuantity);
+                uint256 quantityTransferred = HassetHelpers.transferTokens(msg.sender, address(honestBasket), bAsset.addr, bAsset.isTransferFeeCharged, bAssetQuantity);
 
                 receivedQtyArray[i] = quantityTransferred;
                 hAssetQuantity = hAssetQuantity.add(quantityTransferred);
 
                 // query usd price for bAsset
-                (uint256 bAssetPrice, uint8 bAssetPriceDecimals) = bassetMarket.getBassetPrice(bAsset.addr);
+                (uint256 bAssetPrice, uint256 bAssetPriceDecimals) = bassetMarket.getBassetPrice(bAsset.addr);
                 if (bAssetPrice > 0 && bAssetPriceDecimals > 0) {
                     uint256 priceScale = 10 ** bAssetPriceDecimals;
                     if (bAssetPrice > priceScale) {
@@ -430,9 +431,9 @@ InitializableReentrancyGuard {
      * @return feeRequired      Does this redemption require the swap fee to be applied
      */
     function _validateRedemption(
-        Basset[] calldata _allBassets,
-        uint8[] calldata _indices,
-        uint256[] calldata _bAssetQuantities
+        Basset[] memory _allBassets,
+        uint8[] memory _indices,
+        uint256[] memory _bAssetQuantities
     )
     internal
     returns (bool, string memory)
@@ -502,9 +503,10 @@ InitializableReentrancyGuard {
         // Transfer the Bassets to the recipient
         uint256 bAssetCount = _bAssets.length;
         for (uint256 i = 0; i < bAssetCount; i++) {
-            Basset bAsset = _bAssets[i];
+            Basset memory bAsset = _bAssets[i];
             address bAssetAddr = _bAssets[i].addr;
             uint256 q = _bAssetQuantities[i];
+            address integrator = _integrators[i];
             if (q > 0) {
                 // Deduct the redemption fee, if any
                 (uint256 fee, uint256 outputMinusFee) = _deductRedeemFee(bAssetAddr, q, _feeRate);
@@ -522,10 +524,15 @@ InitializableReentrancyGuard {
                 }
 
                 // Transfer the Bassets to the user
-
-                uint256 quantityTransferred = HassetHelpers.transferTokens(getBasketManager(), _recipient, bAssetAddr, bAsset.isTransferFeeCharged, _bAssetQuantity);
-
-                IPlatformIntegration(_integrators[i]).withdraw(_recipient, bAsset, q, _bAssets[i].isTransferFeeCharged);
+//                function transferTokens(
+//                address _sender,
+//                address _recipient,
+//                address _basset,
+//                bool _erc20TransferFeeCharged,
+//            uint256 _qty
+//            )
+                uint256 quantityTransferred = HassetHelpers.transferTokens(address(honestBasket), _recipient, bAssetAddr, bAsset.isTransferFeeCharged, q);
+                IPlatformIntegration(integrator).withdraw(_recipient, bAssetAddr, q, bAsset.isTransferFeeCharged);
             }
         }
     }
@@ -550,35 +557,6 @@ InitializableReentrancyGuard {
 
             emit PaidFee(msg.sender, _asset, fee);
         }
-    }
-
-    /***************************************
-                    STATE
-    ****************************************/
-
-    /**
-      * @dev Upgrades the version of ForgeValidator protocol. Governor can do this
-      *      only while ForgeValidator is unlocked.
-      * @param _newForgeValidator Address of the new ForgeValidator
-      */
-    function upgradeForgeValidator(address _newForgeValidator)
-    external
-    onlyGovernor
-    {
-        require(!forgeValidatorLocked, "Must be allowed to upgrade");
-        require(_newForgeValidator != address(0), "Must be non null address");
-        forgeValidator = IForgeValidator(_newForgeValidator);
-        emit ForgeValidatorChanged(_newForgeValidator);
-    }
-
-    /**
-      * @dev Locks the ForgeValidator into it's final form. Called by Governor
-      */
-    function lockForgeValidator()
-    external
-    onlyGovernor
-    {
-        forgeValidatorLocked = true;
     }
 
     /**

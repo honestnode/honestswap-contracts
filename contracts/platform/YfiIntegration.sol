@@ -1,5 +1,6 @@
 pragma solidity 0.5.16;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {InitializableAbstractIntegration} from "./InitializableAbstractIntegration.sol";
 import {IyToken} from "./IYfi.sol";
 import {HassetHelpers} from "../util/HassetHelpers.sol";
@@ -80,8 +81,8 @@ contract YfiIntegration is InitializableAbstractIntegration {
         uint256 quantityWithdrawn = _amount;
 
         // Don't need to Approve yToken, as it gets burned in withdraw()
+        IERC20 b = IERC20(_bAsset);
         if (_isTokenFeeCharged) {
-            IERC20 b = IERC20(_bAsset);
             uint256 prevBal = b.balanceOf(address(this));
             yToken.withdraw(_amount);
             uint256 newBal = b.balanceOf(address(this));
@@ -91,7 +92,7 @@ contract YfiIntegration is InitializableAbstractIntegration {
         }
 
         // Send redeemed bAsset to the receiver
-        IERC20(_bAsset).safeTransfer(_receiver, quantityWithdrawn);
+        b.safeTransfer(_receiver, quantityWithdrawn);
 
         emit Withdrawal(_bAsset, address(yToken), quantityWithdrawn);
     }

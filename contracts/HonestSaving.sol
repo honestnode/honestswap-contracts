@@ -75,15 +75,16 @@ InitializableReentrancyGuard
         // bAsset deposit to platform
         BassetPropsMulti memory props = honestBasket.preparePropsMulti();
 
-        int len = apyOrderedBAssetIndices.length;
+        uint256 len = apyOrderedBAssetIndices.length;
         if (len <= 0) {
             apyOrderedBAssetIndices = props.indexes;
             len = apyOrderedBAssetIndices.length;
         }
         require(len > 0, "ApyOrderedBAssetIndices's len should > 0");
         // for update basket balance
-        uint8[] bAssetIndices;
-        uint256[] amounts;
+        uint8[] memory bAssetIndices;
+        uint256[] memory amounts;
+        uint256 index = 0;
         // current amount need to be deposited
         uint256 needDeposit = _amount;
         for (uint256 i = 0; i < len; i++) {
@@ -92,7 +93,7 @@ InitializableReentrancyGuard
             }
             uint8 bAssetIndex = apyOrderedBAssetIndices[i];
 
-            Basset bAsset = props.bAssets[bAssetIndex];
+            Basset memory bAsset = props.bAssets[bAssetIndex];
             address integrator = props.integrators[bAssetIndex];
             uint256 bAssetDepositAmount = 0;
             if (bAsset.poolBalance <= 0) {
@@ -109,8 +110,9 @@ InitializableReentrancyGuard
                 uint256 depositedAmount = IPlatformIntegration(integrator).deposit(bAsset.addr, bAssetDepositAmount, bAsset.isTransferFeeCharged);
                 if (depositedAmount > 0) {
                     depositReturn = depositReturn.add(depositedAmount);
-                    bAssetIndices.push(bAssetIndex);
-                    amounts.push(depositedAmount);
+                    bAssetIndices[index]=bAssetIndex;
+                    amounts[index]= depositedAmount;
+                    index = index.add(1);
                     if (depositedAmount >= needDeposit) {
                         // deposit done
                         break;
@@ -121,7 +123,7 @@ InitializableReentrancyGuard
         }
 
         // update basket balance
-        if (bAssetIndices.len > 0) {
+        if (index > 0) {
             honestBasket.depositForBalance(bAssetIndices, amounts);
         }
 

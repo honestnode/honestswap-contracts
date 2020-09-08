@@ -50,7 +50,7 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
 
         uint256 savingWeight = saverWeights[msg.sender];
         uint256 bonusWeight = saverWeights[msg.sender];
-        weight = saverWeights + bonusWeight;
+        weight = savingWeight.add(bonusWeight);
     }
 
     function getWeights(address[] calldata _savers) external view
@@ -58,14 +58,14 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
         uint256 len = _savers.length;
         require(len > 0, "Input array is empty");
 
-        uint256[] weights = new uint256[](len);
+        weights = new uint256[](len);
 
         for (uint256 i = 0; i < len; i++) {
             address saver = _savers[i];
-            uint256 savingWeight = saverWeights[_saver];
-            uint256 bonusWeight = saverWeights[_saver];
+            uint256 savingWeight = saverWeights[saver];
+            uint256 bonusWeight = saverWeights[saver];
 
-            weights[i] = savingWeight + bonusWeight;
+            weights[i] = savingWeight.add(bonusWeight);
         }
 
         return weights;
@@ -78,7 +78,7 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
      * @param _bonusWeight   bonus weight to be added
      */
     function addWeight(address _saver, uint256 _savingWeight, uint256 _bonusWeight) external nonReentrant
-    onlySavingsManager
+    onlyWeightManager
     returns (uint256 newWeight){
         require(_saver != address(0), "Must be a valid saver");
         require(_savingWeight > 0 || _bonusWeight > 0, "Weight must not be 0");
@@ -108,7 +108,7 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
 
     function addWeights(address[] calldata _savers, uint256[] calldata _savingWeights, uint256[] calldata _bonusWeights) external
     nonReentrant
-    onlySavingsManager
+    onlyWeightManager
     returns (uint256[] memory newWeights){
         uint256 len = _savers.length;
         uint256 len1 = _savingWeights.length;
@@ -151,7 +151,7 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
 
     function minusWeight(address _saver, uint256 _savingWeight, uint256 _bonusWeight) external
     nonReentrant
-    onlySavingsManager
+    onlyWeightManager
     returns (uint256 newWeight){
         require(_saver != address(0), "Must be a valid saver");
         require(_savingWeight > 0 || _bonusWeight > 0, "Weight must not be 0");
@@ -185,7 +185,7 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
     function minusWeights(address[] calldata _savers, uint256[] calldata _savingWeights, uint256[] calldata _bonusWeights)
     external
     nonReentrant
-    onlySavingsManager
+    onlyWeightManager
     returns (uint256[] memory newWeights){
         uint256 len = _savers.length;
         uint256 len1 = _savingWeights.length;
@@ -231,7 +231,7 @@ IHonestWeight, Module, InitializableModule, InitializableReentrancyGuard {
     }
 
     function clearWeight(address _saver) external nonReentrant
-    onlySavingsManager
+    onlyWeightManager
     returns (bool result){
         require(_saver != address(0), "Must be a valid saver");
 
