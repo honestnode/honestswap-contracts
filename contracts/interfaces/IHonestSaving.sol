@@ -20,5 +20,5 @@ interface IHonestSaving {
 
     function borrow(address[] _bAssets, uint256[] _amounts) external returns (uint256);
 
-    function supply(address[] _bAssets, uint256[] _amounts) external returns (uint256);
+    function supply(uint256 _amounts) external returns (uint256);
 }
