@@ -1,6 +1,6 @@
 pragma solidity ^0.5.0;
 
-interface IHasset {
+interface IHAsset {
 
     /** @dev Minting */
     function mint(address _bAsset, uint256 _bAssetQuantity) external returns (uint256 hAssetMinted);
