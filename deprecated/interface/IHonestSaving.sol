@@ -15,5 +15,4 @@ contract IHonestSaving is HassetStructs {
     function querySavingBalance() external view returns (uint256 hAssetBalance);
 
     function queryHUsdSavingApy() external view returns (uint256 apy, uint256 apyTimestamp);
-
 }
