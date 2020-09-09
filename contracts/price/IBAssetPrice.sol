@@ -7,8 +7,8 @@ pragma solidity ^0.5.0;
 interface IBAssetPrice {
 
     /** @dev query bAsset price */
-    function getBassetPrice(address _bAsset) external view returns (uint256 price, uint256 decimals);
+    function getBAssetPrice(address _bAsset) external view returns (uint256 price, uint256 decimals);
     /** @dev query bAsset prices */
-    function getBassetsPrice(address[] calldata _bAssets) external view returns (uint256[] memory prices, uint256[] memory decimals);
+    function getBAssetsPrice(address[] calldata _bAssets) external view returns (uint256[] memory prices, uint256[] memory decimals);
 
 }

@@ -11,6 +11,7 @@ import {InitializableModule} from "../common/InitializableModule.sol";
 import {InitializableReentrancyGuard} from "../common/InitializableReentrancyGuard.sol";
 import {IHAsset} from "../interfaces/IHAsset.sol";
 import {IHonestBasket} from "../interfaces/IHonestBasket.sol";
+import {IHonestSaving} from "../interfaces/IHonestSaving.sol";
 import {IHonestBonus} from "../interfaces/IHonestBonus.sol";
 import {IHonestFee} from "../interfaces/IHonestFee.sol";
 import {IBAssetValidator} from "../validator/IBAssetValidator.sol";
@@ -46,10 +47,6 @@ InitializableReentrancyGuard {
     IHonestFee private honestFeeInterface;
     IBAssetValidator private bAssetValidator;
 
-    // Basic redemption fee information
-    uint256 private redemptionFee;// 0.1% == 1e15 FULL SCALE 1e18
-    uint256 private MAX_FEE;// 10%
-
     /**
      * @dev Constructor
      * @notice To avoid variable shadowing appended `Arg` after arguments name.
@@ -59,6 +56,7 @@ InitializableReentrancyGuard {
         string calldata _symbolArg,
         address _nexus,
         address _honestBasketInterface,
+        address _honestSavingInterface,
         address _bAssetPriceInterface,
         address _honestBonusInterface,
         address _honestFeeInterface,
@@ -72,13 +70,11 @@ InitializableReentrancyGuard {
         InitializableReentrancyGuard._initialize();
 
         honestBasketInterface = IHonestBasket(_honestBasketInterface);
+        honestSavingInterface = IHonestSaving(_honestSavingInterface);
         bAssetPriceInterface = IBAssetPrice(_bAssetPriceInterface);
         honestBonus = IHonestBonus(_honestBonusInterface);
         honestFeeInterface = IHonestFee(_honestFeeInterface);
         bAssetValidator = IBAssetValidator(_bAssetValidator);
-
-        MAX_FEE = 1e17;
-        redemptionFee = 1e15;
     }
 
     //    modifier onlySavingsManager() {
@@ -179,7 +175,7 @@ InitializableReentrancyGuard {
         require(mintValid, reason);
 
         // transfer bAsset to basket
-        uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, address(honestBasketInterface), _bAsset, false, _bAssetQuantity);
+        uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, getBasketAddress(), _bAsset, false, _bAssetQuantity);
         // calc weight
         // query usd price for bAsset
         (uint256 bAssetPrice, uint256 bAssetPriceDecimals) = bAssetPriceInterface.getBassetPrice(_bAsset);
@@ -232,18 +228,21 @@ InitializableReentrancyGuard {
         uint256[] memory receivedQtyArray = new uint256[](len);
 
         uint256 totalBonusWeight = 0;
+        (uint256[] memory prices, uint256[] memory decimals) = bAssetPriceInterface.getBAssetsPrice(_bAssets);
+        require(len == prices.length, "bAsset price array count mismatch");
         for (uint256 i = 0; i < len; i++) {
             uint256 bAssetQuantity = _bAssetQuantities[i];
             address bAssetAddress = _bAssets[i];
             if (bAssetQuantity > 0) {
                 // transfer bAsset to basket
-                uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, address(honestBasketInterface), bAssetAddress, false, bAssetQuantity);
+                uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, getBasketAddress(), bAssetAddress, false, bAssetQuantity);
 
                 receivedQtyArray[i] = quantityTransferred;
                 hAssetQuantity = hAssetQuantity.add(quantityTransferred);
 
                 // query usd price for bAsset
-                (uint256 bAssetPrice, uint256 bAssetPriceDecimals) = bAssetPriceInterface.getBassetPrice(bAssetAddress);
+                uint256 bAssetPrice = prices[i];
+                uint256 bAssetPriceDecimals = decimals[i];
                 if (bAssetPrice > 0 && bAssetPriceDecimals > 0) {
                     uint256 priceScale = 10 ** bAssetPriceDecimals;
                     if (bAssetPrice > priceScale) {
@@ -319,13 +318,33 @@ InitializableReentrancyGuard {
 
     /**
      * @dev Credits a recipient with a certain quantity of selected bAssets, in exchange for burning the
-     *      relative Hasset quantity from the sender. Sender also incurs a small fee, if any.
+     *      relative HAsset quantity from the sender. Sender also incurs a small fee, if any.
      * @param _bAssets          Address of the bAssets to redeem
      * @param _bAssetQuantities Units of the bAssets to redeem
      * @param _recipient        Address to credit with withdrawn bAssets
      * @return hAssetRedeemed     Relative number of hAsset units burned to pay for the bAssets
      */
     function redeemMulti(
+        address[] calldata _bAssets,
+        uint256[] calldata _bAssetQuantities,
+        bool _inProportion
+    )
+    external
+    nonReentrant
+    returns (uint256 hAssetRedeemed)
+    {
+        return _redeemTo(_bAssets, _bAssetQuantities, msg.sender, _inProportion);
+    }
+
+    /**
+     * @dev Credits a recipient with a certain quantity of selected bAssets, in exchange for burning the
+     *      relative HAsset quantity from the sender. Sender also incurs a small fee, if any.
+     * @param _bAssets          Address of the bAssets to redeem
+     * @param _bAssetQuantities Units of the bAssets to redeem
+     * @param _recipient        Address to credit with withdrawn bAssets
+     * @return hAssetRedeemed     Relative number of hAsset units burned to pay for the bAssets
+     */
+    function redeemMultiTo(
         address[] calldata _bAssets,
         uint256[] calldata _bAssetQuantities,
         address _recipient,
@@ -372,160 +391,62 @@ InitializableReentrancyGuard {
         uint256 len = _bAssets.length;
         require(len > 0 && len == _bAssetQuantities.length, "Input array mismatch");
 
-        // Get high level basket info
-        Basket memory basket = honestBasketInterface.getBasket();
+        // valid target bAssets
+        (bool bAssetExist, uint8[] memory statuses) = honestBasketInterface.getBAssetsStatus(_bAssets);
+        require(bAssetExist, "BAsset not exist in the Basket!");
 
-        // Prepare relevant data
-        BassetPropsMulti memory props = honestBasketInterface.prepareForgeBassets(_bAssets);
-        if (!props.isValid) return 0;
+        // Load only needed bAssets in array
+        (bool redeemValid, string memory reason) = bAssetValidator.validateRedeem(_bAssets, statuses, _bAssetQuantities);
+        require(redeemValid, reason);
 
-        // Validation
-        for (uint256 i = 0; i < len; i++) {
-            Basset memory bAsset = props.bAssets[i];
-            // Validation
-            (bool mintValid, string memory reason) = _validateMint(bAsset);
-            require(mintValid, reason);
-        }
+        // query basket balance
+        uint256[] memory bAssetBalances = honestBasketInterface.getBasketBalance(_bAssets);
+        require(len == bAssetBalances.length, "Query bAsset balance failed");
 
-        // Validate redemption
-        (bool redemptionValid, string memory reason) =
-        _validateRedemption(basket.bassets, props.indexes, _bAssetQuantities);
-        require(redemptionValid, reason);
-
-        uint256 hAssetQuantity = 0;
         // Calc total redeemed hAsset quantity
+        uint256 hAssetQuantity = 0;
         for (uint256 i = 0; i < len; i++) {
-            uint256 bAssetQuantity = _bAssetQuantities[i];
-            if (bAssetQuantity > 0) {
-                hAssetQuantity = hAssetQuantity.add(bAssetQuantity);
-            }
+            // check every target bAsset quantity
+            require(_bAssetQuantities[i] <= bAssetBalances[i], "Cannot redeem more bAsset than balance");
+            hAssetQuantity = hAssetQuantity.add(_bAssetQuantities[i]);
         }
         require(hAssetQuantity > 0, "Must redeem some bAssets");
 
         // Redemption has fee? Fetch the rate
-        uint256 fee = _inProportion ? 0 : redemptionFee;
+        uint256 feeRate = 0;
+        if (!_inProportion) {
+            feeRate = honestFeeInterface.redeemFeeRate();
+        }
 
         // Apply fees, burn hAsset and return bAsset to recipient
-        _settleRedemption(_recipient, hAssetQuantity, props.bAssets, _bAssetQuantities, props.indexes, props.integrators, fee);
+        //        _settleRedemption(_recipient, hAssetQuantity, props.bAssets, _bAssetQuantities, props.indexes, props.integrators, fee);
+        _burn(msg.sender, hAssetQuantity);
 
+        uint256 totalFee = 0;
+        uint256[] gapQuantities = new uint256[len];
+        for (uint256 i = 0; i < len; i++) {
+            uint256 bAssetBalance = bAssetBalances[i];
+            // Deduct the redemption fee, if any
+            (uint256 fee, uint256 outputMinusFee) = _deductRedeemFee(_bAssets[i], _bAssetQuantities[i], feeRate);
+            totalFee.add(fee);
+            uint256 bAssetPoolBalance = IERC20(_bAssets[i]).balanceOf(getBasketAddress());
+            uint256 quantityTransferred = HAssetHelpers.transferTokens(getBasketAddress(), _recipient, _bAssetsi, false, outputMinusFee);
+            if (outputMinusFee <= bAssetPoolBalance) {
+                // pool balance enough
+                gapQuantities[i] = 0;
+            } else {
+                // pool balance not enough
+                gapQuantities[i] = outputMinusFee.sub(bAssetPoolBalance);
+            }
+        }
+
+        uint256 barrowQuantity = honestSavingInterface.borrow(_bAssets, gapQuantities);
+
+        if (totalFee > 0) {
+            honestFeeInterface.chargeRedeemFee(msg.sender, totalFee);
+        }
         emit Redeemed(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);
         return hAssetQuantity;
-    }
-
-    /**
-     * @notice Checks whether a given redemption is valid and returns the result
-     * @param _allBassets       Array of all bAsset information
-     * @param _indices          Indexes of the bAssets to redeem
-     * @param _bAssetQuantities Quantity of bAsset to redeem
-     * @return isValid          Bool to signify that the redemption is allowed
-     * @return reason           If the redemption is invalid, this is the reason
-     * @return feeRequired      Does this redemption require the swap fee to be applied
-     */
-    function _validateRedemption(
-        Basset[] memory _allBassets,
-        uint8[] memory _indices,
-        uint256[] memory _bAssetQuantities
-    )
-    internal
-    returns (bool, string memory)
-    {
-        uint256 idxCount = _indices.length;
-        if (idxCount != _bAssetQuantities.length || idxCount <= 0) {
-            return (false, "Input arrays must have equal length");
-        }
-        uint256 len = _allBassets.length;
-
-        // check bAsset status
-        for (uint256 i = 0; i < len; i++) {
-            BassetStatus status = _allBassets[i].status;
-            if (status == BassetStatus.Blacklisted) {
-                return (false, "Basket contains blacklisted bAsset");
-            } else if (
-                status == BassetStatus.Liquidating ||
-                status == BassetStatus.Liquidated ||
-                status == BassetStatus.Failed
-            ) {
-                return (false, "Must redeem proportionately");
-            }
-        }
-
-        // check balance and proportion
-        for (uint256 i = 0; i < idxCount; i++) {
-            uint8 idx = _indices[i];
-            if (idx < 0 || idx >= _allBassets.length) return (false, "Basset does not exist");
-
-            Basset memory bAsset = _allBassets[idx];
-            uint256 quantity = _bAssetQuantities[i];
-            uint256 poolBalance = bAsset.poolBalance.add(bAsset.savingBalance);
-            // TODO
-            if (quantity > poolBalance) {
-                return (false, "Cannot redeem more bAssets than are in the pool");
-            }
-        }
-
-        return (true, "");
-    }
-
-    /**
-     * @dev Internal func to update contract state post-redemption
-     * @param _recipient        Recipient of the bAssets
-     * @param _hAssetQuantity   Total amount of hAsset to burn from sender
-     * @param _bAssets          Array of bAssets to redeem
-     * @param _bAssetQuantities Array of bAsset quantities
-     * @param _indices          Matching indices for the bAsset array
-     * @param _integrators      Matching integrators for the bAsset array
-     * @param _feeRate          Fee rate to be applied to this redemption
-     */
-    function _settleRedemption(
-        address _recipient,
-        uint256 _hAssetQuantity,
-        Basset[] memory _bAssets,
-        uint256[] memory _bAssetQuantities,
-        uint8[] memory _indices,
-        address[] memory _integrators,
-        uint256 _feeRate
-    ) internal {
-        // Burn the full amount of Hasset
-        _burn(msg.sender, _hAssetQuantity);
-
-        // Reduce the amount of bAssets marked in the vault
-        honestBasketInterface.decreasePoolBalances(_indices, _bAssetQuantities);
-
-        // Transfer the Bassets to the recipient
-        uint256 bAssetCount = _bAssets.length;
-        for (uint256 i = 0; i < bAssetCount; i++) {
-            Basset memory bAsset = _bAssets[i];
-            address bAssetAddr = _bAssets[i].addr;
-            uint256 q = _bAssetQuantities[i];
-            address integrator = _integrators[i];
-            if (q > 0) {
-                // Deduct the redemption fee, if any
-                (uint256 fee, uint256 outputMinusFee) = _deductRedeemFee(bAssetAddr, q, _feeRate);
-                q = outputMinusFee;
-
-                // TODO update fee/poo/ balance
-                honestBasketInterface.increaseFeeBalance(_indices[i], fee);
-
-                // use pool balance first
-                if (bAsset.poolBalance >= q) {
-
-                } else {
-                    // still need to withdraw from platform TODO
-
-                }
-
-                // Transfer the Bassets to the user
-                //                function transferTokens(
-                //                address _sender,
-                //                address _recipient,
-                //                address _basset,
-                //                bool _erc20TransferFeeCharged,
-                //            uint256 _qty
-                //            )
-                uint256 quantityTransferred = HAssetHelpers.transferTokens(address(honestBasketInterface), _recipient, bAssetAddr, bAsset.isTransferFeeCharged, q);
-                IPlatformIntegration(integrator).withdraw(_recipient, bAssetAddr, q, bAsset.isTransferFeeCharged);
-            }
-        }
     }
 
     /***************************************
@@ -569,7 +490,7 @@ InitializableReentrancyGuard {
 
         // 3. Deposit the input tokens
         // transfer bAsset to basket
-        uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, address(honestBasketInterface), _input, inputDetails.bAsset.isTransferFeeCharged, _quantity);
+        uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, getBasketAddress(), _input, inputDetails.bAsset.isTransferFeeCharged, _quantity);
         // Log the pool increase
         honestBasketInterface.increasePoolBalance(inputDetails.index, quantityTransferred);
         uint256 deposited = IPlatformIntegration(_integrator).deposit(_bAsset, quantityTransferred, _erc20TransferFeeCharged);
@@ -658,27 +579,12 @@ InitializableReentrancyGuard {
         }
     }
 
-    /**
-      * @dev Set the ecosystem fee for redeeming a hAsset
-      * @param _swapFee Fee calculated in (%/100 * 1e18)
-      */
-    function setSwapFee(uint256 _swapFee)
-    external
-    onlyGovernor
-    {
-        require(_swapFee <= MAX_FEE, "Rate must be within bounds");
-        swapFee = _swapFee;
-
-        emit SwapFeeChanged(_swapFee);
-    }
-
     /***************************************
                     INTERNAL
     ****************************************/
 
     /**
      * @dev Pay the forging fee by burning relative amount of hAsset
-     * @param _bAssetQuantity     Exact amount of bAsset being swapped out
      */
     function _deductRedeemFee(address _asset, uint256 _bAssetQuantity, uint256 _feeRate)
     private
@@ -694,53 +600,15 @@ InitializableReentrancyGuard {
     }
 
     /**
-      * @dev Set the ecosystem fee for redeeming a hAsset
-      * @param _redemptionFee Fee calculated in (%/100 * 1e18)
-      */
-    function setRedemptionFee(uint256 _redemptionFee)
-    external
-    onlyGovernor
-    {
-        require(_redemptionFee <= MAX_FEE, "Rate must be within bounds");
-        redemptionFee = _redemptionFee;
-
-        emit RedemptionFeeChanged(_redemptionFee);
-    }
-
-    /**
       * @dev Gets the address of the BasketManager for this hAsset
-      * @return basketManager Address
+      * @return HonestBasket contract Address
       */
-    function getBasketManager()
-    external
+    function getBasketAddress()
+    public
     view
     returns (address)
     {
         return address(honestBasketInterface);
     }
 
-    /***************************************
-                    INFLATION
-    ****************************************/
-
-    /**
-     * @dev Collects the interest generated from the Basket, minting a relative
-     *      amount of hAsset and sending it over to the SavingsManager.
-     * @return totalInterestGained   Equivalent amount of hAsset units that have been generated
-     * @return newSupply             New total hAsset supply
-     */
-    function collectInterest()
-    external
-    onlySavingsManager
-    nonReentrant
-    returns (uint256 totalInterestGained, uint256 newSupply)
-    {
-        (uint256 interestCollected, uint256[] memory gains) = basketManager.collectInterest();
-
-        // mint new hAsset to sender
-        _mint(msg.sender, interestCollected);
-        emit MintedMulti(address(this), address(this), interestCollected, new address[](0), gains);
-
-        return (interestCollected, totalSupply());
-    }
 }

@@ -1,7 +1,7 @@
 pragma solidity 0.5.16;
 
 import {IBAssetPrice} from "./IBAssetPrice.sol";
-//import {InitializableModule} from "./common/InitializableModule.sol";
+import {InitializableModule} from "../common/InitializableModule.sol";
 
 import {Initializable} from "@openzeppelin/upgrades/contracts/Initializable.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
@@ -13,7 +13,7 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.5/interfaces/Ag
  * @notice  BassetMarket save the current price of all the bAssets
  * @dev     VERSION: 1.0
  */
-contract ChainLinkBAssetPrice is Initializable, IBAssetPrice {
+contract ChainLinkBAssetPrice is Initializable, IBAssetPrice, InitializableModule {
 
     using SafeMath for uint256;
 
@@ -35,7 +35,7 @@ contract ChainLinkBAssetPrice is Initializable, IBAssetPrice {
     external
     initializer
     {
-//        InitializableModule._initialize(_nexus);
+        //        InitializableModule._initialize(_nexus);
 
         require(_ethUsdAggregator != address(0), "Must be a valid _ethUsdAggregator");
         require(_bAssets.length > 0 && _bAssets.length == _aggregators.length, "Must initialise with some bAssets");
@@ -51,7 +51,7 @@ contract ChainLinkBAssetPrice is Initializable, IBAssetPrice {
      * @dev Query bAsset's current price
      * @param _bAsset    bAsset address
      */
-    function getBassetPrice(address _bAsset) external view
+    function getBAssetPrice(address _bAsset) external view
     returns (uint256 price, uint256 decimals){
         require(_bAsset != address(0), "Must be a valid _bAsset");
 
@@ -69,7 +69,7 @@ contract ChainLinkBAssetPrice is Initializable, IBAssetPrice {
         }
     }
 
-    function getBassetsPrice(address[] calldata _bAssets) external view
+    function getBAssetsPrice(address[] calldata _bAssets) external view
     returns (uint256[] memory prices, uint256[] memory decimals){
         uint256 len = _bAssets.length;
         require(len > 0, "Input array is empty");
