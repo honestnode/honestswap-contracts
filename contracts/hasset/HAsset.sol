@@ -424,27 +424,31 @@ InitializableReentrancyGuard {
 
         uint256 totalFee = 0;
         uint256[] gapQuantities = new uint256[len];
+        uint256 supplyBackToSaving = 0;
         for (uint256 i = 0; i < len; i++) {
             uint256 bAssetBalance = bAssetBalances[i];
             // Deduct the redemption fee, if any
             (uint256 fee, uint256 outputMinusFee) = _deductRedeemFee(_bAssets[i], _bAssetQuantities[i], feeRate);
             totalFee.add(fee);
             uint256 bAssetPoolBalance = IERC20(_bAssets[i]).balanceOf(getBasketAddress());
-            uint256 quantityTransferred = HAssetHelpers.transferTokens(getBasketAddress(), _recipient, _bAssetsi, false, outputMinusFee);
+            uint256 quantityTransferred = HAssetHelpers.transferTokens(getBasketAddress(), _recipient, _bAssets[i], false, HonestMath.min(outputMinusFee, bAssetPoolBalance));
             if (outputMinusFee <= bAssetPoolBalance) {
                 // pool balance enough
                 gapQuantities[i] = 0;
             } else {
                 // pool balance not enough
                 gapQuantities[i] = outputMinusFee.sub(bAssetPoolBalance);
+                supplyBackToSaving.add(gapQuantities[i]);
             }
         }
-
-        uint256 barrowQuantity = honestSavingInterface.borrow(_bAssets, gapQuantities);
-
         if (totalFee > 0) {
             honestFeeInterface.chargeRedeemFee(msg.sender, totalFee);
         }
+        if (supplyBackToSaving > 0) {
+            uint256 barrowQuantity = honestSavingInterface.borrow(_bAssets, gapQuantities);
+            uint256 supplyBackToSavingQuantity = honestSavingInterface.supply(supplyBackToSaving);
+        }
+
         emit Redeemed(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);
         return hAssetQuantity;
     }
