@@ -17,4 +17,10 @@ interface IHAsset {
 
     function redeemMulti(address[] calldata _bAssets, uint256[] calldata _bAssetQuantities, address _recipient, bool _inProportion)
     external returns (uint256 hAssetRedeemed);
+
+    function swap(address _inputBAsset, address _outputBAsset, uint256 _quantity, address _recipient)
+    external returns (bool, string memory, uint256 outputQuantity);
+
+    function checkSwap(address _inputBAsset, address _outputBAsset, uint256 _quantity, address _recipient)
+    external returns (bool, string memory, uint256 outputQuantity);
 }

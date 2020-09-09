@@ -8,11 +8,11 @@ interface IHonestBasket {
     function getBasket() external view returns (address[] memory bAssets, uint8[] memory status);
 
     /** @dev query bAsset info */
-    function getBAsset(address _bAsset) external returns (address addr, uint8 status);
+    function getBAssetStatus(address _bAsset) external returns (uint8 status);
     /** @dev query bAssets info */
-    function getBAssets(address[] calldata _bAssets) external returns (address[] memory bAssets, uint8[] memory status);
+    function getBAssetsStatus(address[] calldata _bAssets) external returns (uint8[] memory status);
 
     /** @dev Setters for Gov to update Basket composition */
-    function addBAsset(address _bAsset, uint8 status) external returns (uint8 index);
+    function addBAsset(address _bAsset, uint8 status) external returns (bool result);
 
 }
