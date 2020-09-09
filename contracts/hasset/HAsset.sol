@@ -208,16 +208,6 @@ InitializableReentrancyGuard {
         return quantityTransferred;
     }
 
-    function _validateMint(uint8 memory _bAssetStatus)
-    internal
-    returns (bool isValid, string memory reason)
-    {
-        if (_bAssetStatus != 1) {
-            return (false, "bAsset not allowed in mint");
-        }
-        return (true, "");
-    }
-
     /** @dev Mint Multi */
     function _mintTo(
         address[] memory _bAssets,
@@ -231,36 +221,29 @@ InitializableReentrancyGuard {
         uint256 len = _bAssetQuantities.length;
         require(len > 0 && len == _bAssets.length, "Input array mismatch");
 
+        (bool bAssetExist, uint8[] memory statuses) = honestBasketInterface.getBAssetsStatus(_bAssets);
+        require(bAssetExist, "bAsset not exist in the Basket!");
+
         // Load only needed bAssets in array
-        BassetPropsMulti memory props = honestBasketInterface.prepareForgeBassets(_bAssets);
-        if (!props.isValid) return 0;
+        (bool mintValid, string memory reason) = bAssetValidator.validateMintMulti(_bAssets, statuses, _bAssetQuantities);
+        require(mintValid, reason);
 
         uint256 hAssetQuantity = 0;
         uint256[] memory receivedQtyArray = new uint256[](len);
 
-        // Validation
-        for (uint256 i = 0; i < len; i++) {
-            Basset memory bAsset = props.bAssets[i];
-            // Validation
-            (bool mintValid, string memory reason) = _validateMint(bAsset);
-            require(mintValid, reason);
-        }
-
         uint256 totalBonusWeight = 0;
-        // Transfer the Bassets to the integrator, update storage and calc HassetQ
         for (uint256 i = 0; i < len; i++) {
             uint256 bAssetQuantity = _bAssetQuantities[i];
+            address bAssetAddress = _bAssets[i];
             if (bAssetQuantity > 0) {
-                Basset memory bAsset = props.bAssets[i];
-
                 // transfer bAsset to basket
-                uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, address(honestBasketInterface), bAsset.addr, bAsset.isTransferFeeCharged, bAssetQuantity);
+                uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, address(honestBasketInterface), bAssetAddress, false, bAssetQuantity);
 
                 receivedQtyArray[i] = quantityTransferred;
                 hAssetQuantity = hAssetQuantity.add(quantityTransferred);
 
                 // query usd price for bAsset
-                (uint256 bAssetPrice, uint256 bAssetPriceDecimals) = bAssetPrice.getBassetPrice(bAsset.addr);
+                (uint256 bAssetPrice, uint256 bAssetPriceDecimals) = bAssetPriceInterface.getBassetPrice(bAssetAddress);
                 if (bAssetPrice > 0 && bAssetPriceDecimals > 0) {
                     uint256 priceScale = 10 ** bAssetPriceDecimals;
                     if (bAssetPrice > priceScale) {
@@ -281,15 +264,12 @@ InitializableReentrancyGuard {
         }
         require(hAssetQuantity > 0, "No hAsset quantity to mint");
 
-        // update pool balance
-        honestBasketInterface.increasePoolBalances(props.indexes, receivedQtyArray);
-
         // add bonus weight
         if (totalBonusWeight > 0) {
-            honestWeight.addWeight(_recipient, 0, totalBonusWeight);
+            honestBonusInterface.addBonus(_recipient, totalBonusWeight);
         }
 
-        // Mint the Hasset
+        // Mint the HAsset
         _mint(_recipient, hAssetQuantity);
         emit MintedMulti(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);
 
