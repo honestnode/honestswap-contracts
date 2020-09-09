@@ -1,20 +1,18 @@
 pragma solidity ^0.5.0;
 
 interface IHonestBasket {
-    /** @dev Basket total balance value */
-    function getBasketValue() external view returns (uint256 balance);
+    /** @dev Basket balance value of each bAsset */
+    function getBasketBalance() external view returns (address[] memory bAssets, uint256[] balance);
 
     /** @dev Basket all bAsset info */
-    function getBasket() external view returns (address[] memory bAssets, uint8[] memory status, bool[] memory isTransferFeeCharged);
+    function getBasket() external view returns (address[] memory bAssets, uint8[] memory status);
 
     /** @dev query bAsset info */
-    function getBAsset(address _bAsset) external returns (address addr, uint8 status, bool isTransferFeeCharged);
+    function getBAsset(address _bAsset) external returns (address addr, uint8 status);
     /** @dev query bAssets info */
-    function getBAssets(address[] calldata _bAssets) external returns (address[] memory bAssets, uint8[] memory status, bool[] memory isTransferFeeCharged);
+    function getBAssets(address[] calldata _bAssets) external returns (address[] memory bAssets, uint8[] memory status);
 
     /** @dev Setters for Gov to update Basket composition */
-    function addBAsset(address _bAsset, address _integration, bool _isTransferFeeCharged) external returns (uint8 index);
-
-    function setTransferFeesFlag(address _bAsset, bool _flag) external;
+    function addBAsset(address _bAsset, uint8 status) external returns (uint8 index);
 
 }
