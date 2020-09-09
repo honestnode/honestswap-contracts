@@ -595,6 +595,47 @@ InitializableReentrancyGuard
     }
 
     /**
+     * @dev Called by hAsset to calculate how much interest has been generated in the basket
+     *      and withdraw it. Cycles through the connected platforms to check the balances.
+     * @return interestCollected   Total amount of interest collected, in mAsset terms
+     * @return gains               Array of bAsset units gained
+     */
+    function collectInterest()
+    external
+    onlyHasset
+    whenNotPaused
+    nonReentrant
+    returns (uint256 interestCollected, uint256[] memory gains)
+    {
+        // Get basket details
+        (Basset[] memory allBassets, uint256 count) = _getBassets();
+        gains = new uint256[](count);
+        interestCollected = 0;
+
+        // foreach bAsset
+        for (uint8 i = 0; i < count; i++) {
+            Basset memory b = allBassets[i];
+            // call each integration to `checkBalance`
+            uint256 balance = IPlatformIntegration(integrations[i]).checkBalance(b.addr);
+            uint256 oldPlatformBalance = b.platformBalance;
+
+            // accumulate interest (bAsset)
+            if (balance > oldPlatformBalance && b.status == BassetStatus.Normal) {
+                // Update balance
+                basket.bassets[i].platformBalance = balance;
+
+                uint256 interestDelta = balance.sub(oldPlatformBalance);
+                gains[i] = interestDelta;
+
+                // Calc HassetQ to mint
+                interestCollected = interestCollected.add(interestDelta);
+            } else {
+                gains[i] = 0;
+            }
+        }
+    }
+
+    /**
      * @dev Get data for a all bAssets in basket
      * @return bAssets  Struct[] with full bAsset data
      * @return len      Number of bAssets in the Basket

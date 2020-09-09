@@ -25,6 +25,8 @@ contract IHasset is HassetStructs {
     function redeemMulti(address[] calldata _bAssets, uint256[] calldata _bAssetQuantities, address _recipient, bool _inProportion)
     external returns (uint256 hAssetRedeemed);
 
+    /** @dev Mint new interest */
+    function collectInterest() external returns (uint256 totalInterestGained, uint256 newSupply);
 //    function redeemHasset(uint256 _hAssetQuantity, address _recipient) external;
     /** @dev Setters for Gov to set system params */
     function setRedemptionFee(uint256 _redemptionFee) external;

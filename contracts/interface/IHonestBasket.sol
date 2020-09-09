@@ -40,14 +40,16 @@ contract IHonestBasket is HassetStructs {
 
     // update balance after deposit
     function mintForBalance(uint8[] calldata _bAssetIndices, uint256[] calldata _amounts) external;
+
     function withdrawForBalance(uint8[] calldata _bAssetIndices, uint256[] calldata _amounts) external;
 
     function depositForBalance(uint8[] calldata _bAssetIndices, uint256[] calldata _amounts) external;
+
     function redeemForBalance(uint8[] calldata _bAssetIndices, uint256[] calldata _amounts) external;
 
     function swapForBalance(uint8[] calldata _bAssetIndices, uint256[] calldata _amounts) external;
-    //    function collectInterest() external
-    //    returns (uint256 interestCollected, uint256[] memory gains);
+
+    function collectInterest() external returns (uint256 interestCollected, uint256[] memory gains);
 
     /** @dev Setters for Gov to update Basket composition */
     function addBasset(address _basset, address _integration, bool _isTransferFeeCharged) external returns (uint8 index);
@@ -70,6 +72,6 @@ contract IHonestBasket is HassetStructs {
 
     function getBasset(address _token) external returns (Basset memory bAsset);
 
-//    function getBassets() external view returns (Basset[] memory bAssets, uint256 len);
+    //    function getBassets() external view returns (Basset[] memory bAssets, uint256 len);
 
 }
