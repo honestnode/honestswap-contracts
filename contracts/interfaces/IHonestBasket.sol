@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 
 interface IHonestBasket {
     /** @dev Basket balance value of each bAsset */
-    function getBasketBalance() external view returns (address[] memory bAssets, uint256[] balance);
+    function getBasketBalance(address[] calldata bAssets) external view returns (uint256[] memory balance);
 
     /** @dev Basket all bAsset info */
     function getBasket() external view returns (address[] memory bAssets, uint8[] memory status);
