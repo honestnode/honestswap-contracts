@@ -18,7 +18,7 @@ interface IHonestSaving {
 
     function apy() external view returns (uint256);
 
-    function borrow(uint256 _amount) external returns (uint256);
+    function borrow(address[] _bAssets, uint256[] _amounts) external returns (uint256);
 
-    function supply(uint256 _amount) external returns (uint256);
+    function supply(address[] _bAssets, uint256[] _amounts) external returns (uint256);
 }
