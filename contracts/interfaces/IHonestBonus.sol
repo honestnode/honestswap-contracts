@@ -8,7 +8,7 @@ interface IHonestBonus {
 
     function totalBonus() external view returns (uint256);
 
-    function addBonus(address _account) external returns (uint256);
+    function addBonus(address _account, uint256 _amount) external returns (uint256);
 
     function claimRewards(address _account) external returns (uint256);
 }
