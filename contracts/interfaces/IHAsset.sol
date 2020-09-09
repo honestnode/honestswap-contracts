@@ -7,7 +7,10 @@ interface IHAsset {
 
     function mintTo(address _bAsset, uint256 _bAssetQuantity, address _recipient) external returns (uint256 hAssetMinted);
 
-    function mintMulti(address[] calldata _bAssets, uint256[] calldata _bAssetQuantity, address _recipient)
+    function mintMulti(address[] calldata _bAssets, uint256[] calldata _bAssetQuantity)
+    external returns (uint256 hAssetMinted);
+
+    function mintMultiTo(address[] calldata _bAssets, uint256[] calldata _bAssetQuantity, address _recipient)
     external returns (uint256 hAssetMinted);
 
     /** @dev Redeeming */
@@ -15,7 +18,10 @@ interface IHAsset {
 
     function redeemTo(address _bAsset, uint256 _bAssetQuantity, address _recipient) external returns (uint256 hAssetRedeemed);
 
-    function redeemMulti(address[] calldata _bAssets, uint256[] calldata _bAssetQuantities, address _recipient, bool _inProportion)
+    function redeemMulti(address[] calldata _bAssets, uint256[] calldata _bAssetQuantities, bool _inProportion)
+    external returns (uint256 hAssetRedeemed);
+
+    function redeemMultiTo(address[] calldata _bAssets, uint256[] calldata _bAssetQuantities, address _recipient, bool _inProportion)
     external returns (uint256 hAssetRedeemed);
 
     function swap(address _inputBAsset, address _outputBAsset, uint256 _quantity, address _recipient)
