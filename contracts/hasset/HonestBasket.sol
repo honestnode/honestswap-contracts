@@ -66,12 +66,28 @@ InitializableReentrancyGuard {
         _;
     }
 
+    function getBalance(address _bAsset) external view returns (uint256 memory balance){
+        require(_bAsset != address(0), "bAsset address must be valid");
+        (bool exist, uint8 index) = _isAssetInBasket(_bAsset);
+        require(exist, "bAsset not exist");
+
+        balance = IERC20(_bAsset).balanceOf(address(this));
+
+        address[] memory _bAssets = new address[1];
+        _bAssets[0] = _bAsset;
+        uint256[] memory bAssetBalances = honestSavingsInterface.investmentOf(_bAssets);
+        if (bAssetBalances.length > 0) {
+            balance = balance.add(bAssetBalances[0]);
+        }
+    }
+
     /** @dev Basket balance value of each bAsset */
     function getBasketBalance(address[] calldata _bAssets)
     external view
-    returns (uint256[] memory){
+    returns (uint256 sumBalance, uint256[] memory balances){
         require(_bAssets.length > 0, "bAsset address must be valid");
 
+        sumBalance = 0;
         uint256[] memory bAssetBalances = honestSavingsInterface.investmentOf(_bAssets);
         for (uint256 i = 0; i < _bAssets.length; i++) {
             (bool exist, uint8 index) = _isAssetInBasket(_bAssets[i]);
@@ -79,9 +95,26 @@ InitializableReentrancyGuard {
             if (exist) {
                 uint256 poolBalance = IERC20(_bAssets[i]).balanceOf(address(this));
                 bAssetBalances[i] = bAssetBalances[i].add(poolBalance);
+                sumBalance = sumBalance.add(bAssetBalances[i]);
             }
         }
-        return bAssetBalances;
+        balances = bAssetBalances;
+    }
+
+    function getBasketAllBalance() external view returns (uint256 sumBalance, address[] memory allBAssets, uint256[] memory balances){
+        allBAssets = bAssets;
+        sumBalance = 0;
+        uint256[] memory bAssetBalances = honestSavingsInterface.investmentOf(_bAssets);
+        for (uint256 i = 0; i < _bAssets.length; i++) {
+            (bool exist, uint8 index) = _isAssetInBasket(_bAssets[i]);
+
+            if (exist) {
+                uint256 poolBalance = IERC20(_bAssets[i]).balanceOf(address(this));
+                bAssetBalances[i] = bAssetBalances[i].add(poolBalance);
+                sumBalance = sumBalance.add(bAssetBalances[i]);
+            }
+        }
+        balances = bAssetBalances;
     }
 
     /** @dev Basket all bAsset info */
