@@ -7,6 +7,7 @@ import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 
 import "../interfaces/IHonestSavings.sol";
+import "./IInvestmentIntegration.sol";
 
 contract HonestSavings is IHonestSavings, Ownable {
 
@@ -18,6 +19,7 @@ contract HonestSavings is IHonestSavings, Ownable {
     event SavingsRedeemed(address indexed account, uint256 shares, uint256 amount);
 
     address private _hAsset;
+    address private _investmentIntegration;
 
     mapping(address => uint256) private _savings;
     mapping(address => uint256) private _shares;
@@ -25,9 +27,11 @@ contract HonestSavings is IHonestSavings, Ownable {
     uint256 private _totalSavings;
     uint256 private _totalShares;
 
-    constructor(address _hAssetContract) public {
-        require(_hAssetContract != address(0), "address must be valid");
+    constructor(address _hAssetContract, address _investmentContract) public {
+        require(_hAssetContract != address(0), "honest asset must be valid");
+        require(_investmentContract != address(0), "investment contract must be valid");
         _hAsset = _hAssetContract;
+        _investmentIntegration = _investmentContract;
     }
 
     function setHAsset(address _hAssetContract) external onlyOwner {
@@ -41,8 +45,6 @@ contract HonestSavings is IHonestSavings, Ownable {
 
     function deposit(uint256 _amount) external returns (uint256) {
         require(_amount > 0, "deposit must be greater than 0");
-
-        IERC20(_hAsset).safeTransferFrom(_msgSender(), address(this), _amount);
 
         _savings[_msgSender()] = _savings[_msgSender()].add(_amount);
         _totalSavings = _totalSavings.add(_amount);
@@ -69,8 +71,6 @@ contract HonestSavings is IHonestSavings, Ownable {
         _totalSavings = _totalSavings.sub(amount);
 
         _collect(_msgSender(), amount);
-
-        IERC20(_hAsset).safeTransfer(_msgSender(), amount);
 
         emit SavingsRedeemed(_msgSender(), _credits, amount);
         return amount;
@@ -114,7 +114,7 @@ contract HonestSavings is IHonestSavings, Ownable {
     }
 
     function _netValue() internal view returns (uint256) {
-        return 1e18;
+        return IInvestmentIntegration(_investmentIntegration).totalBalance().mul(1e18).div(_totalSavings);
     }
 
     function _savingsToShares(uint256 _amount) internal view returns (uint256) {
@@ -126,10 +126,14 @@ contract HonestSavings is IHonestSavings, Ownable {
     }
 
     function _invest(address _account, uint256 _amount) internal {
-        // TODO: implement
+        IERC20(_hAsset).safeTransferFrom(_msgSender(), _investmentIntegration, _amount);
+        // TODO: hAsset => bAssets => invest
+//        IInvestmentIntegration(_investmentIntegration).invest('', _amount);
     }
 
-    function _collect(address _account, uint256 _amount) internal {
-        // TODO: implement
+    function _collect(address _account, uint256 _shares) internal {
+        // TODO:
+        IInvestmentIntegration(_investmentIntegration).collect(_account, _shares);
+        IERC20(_hAsset).safeTransfer(_msgSender(), amount);
     }
 }

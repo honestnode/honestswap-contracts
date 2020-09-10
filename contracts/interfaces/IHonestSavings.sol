@@ -25,5 +25,5 @@ interface IHonestSavings {
 
     function investments() external view returns(address[] _bAssets, uint256[] _amounts);
 
-    function investmentOf(address[] _bAssets) external view returns(uint256[]);
+    function investmentOf(address[] calldata _bAssets) external view returns(uint256[]);
 }
