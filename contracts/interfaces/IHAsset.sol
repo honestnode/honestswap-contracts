@@ -30,5 +30,5 @@ interface IHAsset {
     function checkSwap(address _inputBAsset, address _outputBAsset, uint256 _quantity, address _recipient)
     external returns (bool, string memory, uint256 outputQuantity);
 
-    function getBasketAddress() public view returns (address);
+    function getBasketAddress() external view returns (address);
 }

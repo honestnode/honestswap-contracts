@@ -21,7 +21,8 @@ contract HNTRewords is IHNTRewards, Ownable {
     uint256 private _totalSavings;
 
     constructor(address _token) public {
-        setToken(_token);
+        require(_token != address(0), "Address must be valid");
+        token = _token;
     }
 
     function setToken(address _token) external onlyOwner {
@@ -68,7 +69,7 @@ contract HNTRewords is IHNTRewards, Ownable {
         uint256 savings = _savings[_msgSender()];
         require(_amount <= savings, "insufficient savings");
 
-        IERC20(_token).safeTransfer(_msgSender(), _amount);
+        IERC20(token).safeTransfer(_msgSender(), _amount);
         return true;
     }
 
@@ -85,7 +86,7 @@ contract HNTRewords is IHNTRewards, Ownable {
         if (_totalSavings == 0) {
             return 0;
         }
-        uint256 savings = _savings(_account);
+        uint256 savings = _savings[_account];
         return savings.mul(sharesRatio).div(_totalSavings);
     }
 

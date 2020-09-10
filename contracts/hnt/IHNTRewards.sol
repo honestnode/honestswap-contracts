@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 
 interface IHNTRewards {
 
-    function setToken(address _token) external onlyOwner;
+    function setToken(address _token) external;
 
     function totalSavings() external view returns (uint256);
 
