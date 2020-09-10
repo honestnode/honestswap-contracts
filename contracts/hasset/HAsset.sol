@@ -11,7 +11,7 @@ import {InitializableModule} from "../common/InitializableModule.sol";
 import {InitializableReentrancyGuard} from "../common/InitializableReentrancyGuard.sol";
 import {IHAsset} from "../interfaces/IHAsset.sol";
 import {IHonestBasket} from "../interfaces/IHonestBasket.sol";
-import {IHonestSaving} from "../interfaces/IHonestSaving.sol";
+import {IHonestSavings} from "../interfaces/IHonestSavings.sol";
 import {IHonestBonus} from "../interfaces/IHonestBonus.sol";
 import {IHonestFee} from "../interfaces/IHonestFee.sol";
 import {IBAssetValidator} from "../validator/IBAssetValidator.sol";
@@ -45,6 +45,7 @@ InitializableReentrancyGuard {
     IBAssetPrice private bAssetPriceInterface;
     IHonestBonus private honestBonusInterface;
     IHonestFee private honestFeeInterface;
+    IHonestSavings private honestSavingsInterface;
     IBAssetValidator private bAssetValidator;
 
     /**
@@ -56,7 +57,7 @@ InitializableReentrancyGuard {
         string calldata _symbolArg,
         address _nexus,
         address _honestBasketInterface,
-        address _honestSavingInterface,
+        address _honestSavingsInterface,
         address _bAssetPriceInterface,
         address _honestBonusInterface,
         address _honestFeeInterface,
@@ -70,7 +71,7 @@ InitializableReentrancyGuard {
         InitializableReentrancyGuard._initialize();
 
         honestBasketInterface = IHonestBasket(_honestBasketInterface);
-        honestSavingInterface = IHonestSaving(_honestSavingInterface);
+        honestSavingsInterface = IHonestSaving(_honestSavingsInterface);
         bAssetPriceInterface = IBAssetPrice(_bAssetPriceInterface);
         honestBonus = IHonestBonus(_honestBonusInterface);
         honestFeeInterface = IHonestFee(_honestFeeInterface);
@@ -468,8 +469,8 @@ InitializableReentrancyGuard {
         }
         if (supplyBackToSaving > 0) {
             // barrow gap quantity from saving, saving will send bAsset to msg.sender
-            uint256 barrowQuantity = honestSavingInterface.borrowMulti(msg.sender, _bAssets, gapQuantities);
-            uint256 supplyBackToSavingQuantity = honestSavingInterface.supply(supplyBackToSaving);
+            uint256 barrowQuantity = honestSavingsInterface.borrowMulti(msg.sender, _bAssets, gapQuantities);
+            uint256 supplyBackToSavingQuantity = honestSavingsInterface.supply(supplyBackToSaving);
         }
 
         emit Redeemed(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);
@@ -532,6 +533,8 @@ InitializableReentrancyGuard {
         // Deduct the swap fee, if any
         (uint256 swapFee, uint256 outputMinusFee) = _deductRedeemFee(_output, _quantity, swapFeeRate);
 
+        outputQuantity = outputMinusFee;
+
         uint256 bAssetPoolBalance = IERC20(_output).balanceOf(getBasketAddress());
         uint256 quantitySwapOut = HAssetHelpers.transferTokens(getBasketAddress(), _recipient, _bAssets[i], false, HonestMath.min(outputMinusFee, bAssetPoolBalance));
         uint256 gapQuantity = 0;
@@ -545,15 +548,12 @@ InitializableReentrancyGuard {
         // handle swap fee
         honestFeeInterface.chargeSwapFee(msg.sender, swapFee);
 
-        if (supplyBackToSaving > 0) {
+        if (gapQuantity > 0) {
             // barrow gap quantity from saving, saving will send bAsset to msg.sender
-            uint256 barrowQuantity = honestSavingInterface.borrow(msg.sender, _output, gapQuantity);
-            uint256 supplyBackToSavingQuantity = honestSavingInterface.supply(supplyBackToSaving);
+            uint256 barrowQuantity = honestSavingsInterface.borrow(msg.sender, _output, gapQuantity);
+            uint256 supplyBackToSavingQuantity = honestSavingsInterface.supply(barrowQuantity);
         }
-
-        output = swapOutput;
-
-        emit Swapped(msg.sender, _input, _output, swapOutput, _recipient);
+        emit Swapped(msg.sender, _input, _output, outputQuantity, _recipient);
     }
 
 
@@ -565,7 +565,7 @@ InitializableReentrancyGuard {
      * @param _quantity     Units of input bAsset to swap
      * @return valid        Bool to signify that swap is current valid
      * @return reason       If swap is invalid, this is the reason
-     * @return output       Units of _output asset the trade would return
+     * @return outputQuantity       Units of _output asset the trade would return
      */
     function getSwapOutput(
         address _input,
@@ -574,44 +574,45 @@ InitializableReentrancyGuard {
     )
     external
     view
-    returns (bool, string memory, uint256 output)
+    returns (bool, string memory, uint256 outputQuantity)
     {
         require(_input != address(0) && _output != address(0), "Invalid swap asset addresses");
         require(_input != _output, "Cannot swap the same asset");
 
-        bool isMint = _output == address(this);
+        bool isMint = (_output == address(this));
         uint256 quantity = _quantity;
 
-        // 1. Get relevant asset data
-        (bool isValid, string memory reason, BassetDetails memory inputDetails, BassetDetails memory outputDetails) =
-        basketManager.prepareSwapBassets(_input, _output, isMint);
-        if (!isValid) {
-            return (false, reason, 0);
-        }
+
+        // valid target bAssets
+        address[] memory bAssets = address[2];
+        bAssets[0] = _input;
+        bAssets[1] = _output;
+        (bool bAssetExist, uint8[] memory statuses) = honestBasketInterface.getBAssetsStatus(bAssets);
+        require(bAssetExist, "BAsset not exist in the Basket!");
 
         // 2. check if trade is valid
         // 2.1. If output is hAsset(this), then calculate a simple mint
         if (isMint) {
             // Validate mint
-            (isValid, reason) = forgeValidator.validateMint(totalSupply(), inputDetails.bAsset, quantity);
+            (isValid, reason) = bAssetValidator.validateMint(_input, statuses[0], _quantity);
             if (!isValid) return (false, reason, 0);
-            // Simply cast the quantity to hAsset
-            output = quantity.mulRatioTruncate(inputDetails.bAsset.ratio);
-            return (true, "", output);
+            return (true, "", _quantity);
         }
         // 2.2. If a bAsset swap, calculate the validity, output and fee
         else {
-            (bool swapValid, string memory swapValidityReason, uint256 swapOutput, bool applySwapFee) =
-            forgeValidator.validateSwap(totalSupply(), inputDetails.bAsset, outputDetails.bAsset, quantity);
+            (bool swapValid, string memory reason) = bAssetValidator.validateSwap(_input, statuses[0], _output, statuses[1], _quantity);
             if (!swapValid) {
-                return (false, swapValidityReason, 0);
+                return (false, reason, 0);
             }
 
-            // 3. Return output and fee, if any
-            if (applySwapFee) {
-                (, swapOutput) = _calcSwapFee(swapOutput, swapFee);
+            uint256 swapFeeRate = honestFeeInterface.swapFeeRate();
+            if (swapFeeRate > 0) {
+                uint256 swapFee = _quantity.mulTruncate(swapFeeRate);
+                outputQuantity = _quantity.sub(swapFee);
+            } else {
+                outputQuantity = _quantity;
             }
-            return (true, "", swapOutput);
+            return (true, "", outputQuantity);
         }
     }
 
