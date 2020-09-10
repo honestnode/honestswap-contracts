@@ -4,7 +4,7 @@ interface IHonestSavings {
 
     function deposit(uint256 _amount) external returns (uint256);
 
-    function withdraw(uint256 _amount) external returns (uint256);
+    function withdraw(uint256 _shares) external returns (uint256);
 
     function savingsOf(address _account) external view returns (uint256);
 
@@ -18,7 +18,7 @@ interface IHonestSavings {
 
     function apy() external view returns (uint256);
 
-    function borrow(address[] _bAssets, uint256[] _amounts) external returns (uint256);
+    function borrow(address _account, address[] calldata _bAssets, uint256[] calldata _amounts) external returns (uint256);
 
     function supply(uint256 _amounts) external returns (uint256);
 }
