@@ -375,17 +375,13 @@ InitializableReentrancyGuard {
         (address[] memory allBAssets, uint8[] memory statuses) = honestBasketInterface.getBasket();
         address[] memory bAssets = bAssetValidator.filterValidBAsset(allBAssets, statuses);
         require(bAssets.length > 0, "No valid bAssets");
-        uint256[] memory bAssetBalances = honestBasketInterface.getBasketBalance(bAssets);
+        (uint256 sumBalance, uint256[] memory bAssetBalances) = honestBasketInterface.getBAssetsBalance(bAssets);
         require(_bAssets.length == bAssetBalances.length, "Query bAsset balance failed");
-        uint256 totalBAssetBalance = 0;
-        for (uint256 i = 0; i < bAssetBalances.length; i++) {
-            totalBAssetBalance.add(bAssetBalances[i]);
-        }
         // calc bAssets quantity in Proportion
         uint256[] memory bAssetQuantities = new uint256[bAssets.length];
         for (uint256 i = 0; i < bAssets.length; i++) {
             uint256 quantity = _bAssetQuantity.mul(bAssetBalances[i]);
-            bAssetQuantities[i] = quantity.div(totalBAssetBalance);
+            bAssetQuantities[i] = quantity.div(sumBalance);
         }
 
         return _handleRedeem(bAssets, bAssetQuantities, bAssetBalances, _recipient, true);
@@ -414,7 +410,7 @@ InitializableReentrancyGuard {
         require(redeemValid, reason);
 
         // query basket balance
-        uint256[] memory bAssetBalances = honestBasketInterface.getBasketBalance(_bAssets);
+        (uint256 sumBalance, uint256[] memory bAssetBalances) = honestBasketInterface.getBasketBalance(_bAssets);
         require(len == bAssetBalances.length, "Query bAsset balance failed");
 
         return _handleRedeem(_bAssets, _bAssetQuantities, bAssetBalances, _recipient, _inProportion);
@@ -448,7 +444,7 @@ InitializableReentrancyGuard {
         _burn(msg.sender, hAssetQuantity);
 
         uint256 totalFee = 0;
-        uint256[] gapQuantities = new uint256[len];
+        uint256[] memory gapQuantities = new uint256[len];
         uint256 supplyBackToSaving = 0;
         for (uint256 i = 0; i < len; i++) {
             uint256 bAssetBalance = _bAssetBalances[i];
@@ -472,7 +468,7 @@ InitializableReentrancyGuard {
         }
         if (supplyBackToSaving > 0) {
             // barrow gap quantity from saving, saving will send bAsset to msg.sender
-            uint256 barrowQuantity = honestSavingInterface.borrow(_bAssets, gapQuantities);
+            uint256 barrowQuantity = honestSavingInterface.borrowMulti(msg.sender, _bAssets, gapQuantities);
             uint256 supplyBackToSavingQuantity = honestSavingInterface.supply(supplyBackToSaving);
         }
 
@@ -509,13 +505,13 @@ InitializableReentrancyGuard {
         require(_recipient != address(0), "Missing recipient address");
         require(_quantity > 0, "Invalid quantity");
 
-        // 1. If the output is this hAsset, just mint
+        // If the output is this hAsset, just mint
         if (_output == address(this)) {
             return _mintTo(_input, _quantity, _recipient);
         }
 
         // valid target bAssets
-        address[] bAssets = address[2];
+        address[] memory bAssets = address[2];
         bAssets[0] = _input;
         bAssets[1] = _output;
         (bool bAssetExist, uint8[] memory statuses) = honestBasketInterface.getBAssetsStatus(bAssets);
@@ -524,31 +520,36 @@ InitializableReentrancyGuard {
         (bool swapValid, string memory reason) = bAssetValidator.validateSwap(_input, statuses[0], _output, statuses[1], _quantity);
         require(swapValid, reason);
 
-        // 3. Deposit the input tokens
         // transfer bAsset to basket
-        uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, getBasketAddress(), _input, false, _quantity);
+        uint256 quantitySwapIn = HAssetHelpers.transferTokens(msg.sender, getBasketAddress(), _input, false, _quantity);
 
-//        uint256 deposited = IPlatformIntegration(_integrator).deposit(_bAsset, quantityTransferred, _erc20TransferFeeCharged);
-//        quantityDeposited = StableMath.min(deposited, _quantity);
+        // check output bAsset balance
+        uint256 outputBAssetBalance = honestBasketInterface.getBalance(_output);
+        require(_quantity <= outputBAssetBalance, "Not enough swap out bAsset");
 
-        uint256 quantitySwappedIn = _depositTokens(_input, inputDetails.integrator, inputDetails.bAsset.isTransferFeeCharged, _quantity);
-        // 3.1. Update the input balance
-        basketManager.increaseVaultBalance(inputDetails.index, inputDetails.integrator, quantitySwappedIn);
+        uint256 swapFeeRate = honestFeeInterface.swapFeeRate();
 
-        // 4. Validate the swap
-        (bool swapValid, string memory swapValidityReason, uint256 swapOutput, bool applySwapFee) =
-        forgeValidator.validateSwap(totalSupply(), inputDetails.bAsset, outputDetails.bAsset, quantitySwappedIn);
-        require(swapValid, swapValidityReason);
+        // Deduct the swap fee, if any
+        (uint256 swapFee, uint256 outputMinusFee) = _deductRedeemFee(_output, _quantity, swapFeeRate);
 
-        // 5. Settle the swap
-        // 5.1. Decrease output bal
-        basketManager.decreaseVaultBalance(outputDetails.index, outputDetails.integrator, swapOutput);
-        // 5.2. Calc fee, if any
-        if (applySwapFee) {
-            swapOutput = _deductSwapFee(_output, swapOutput, swapFee);
+        uint256 bAssetPoolBalance = IERC20(_output).balanceOf(getBasketAddress());
+        uint256 quantitySwapOut = HAssetHelpers.transferTokens(getBasketAddress(), _recipient, _bAssets[i], false, HonestMath.min(outputMinusFee, bAssetPoolBalance));
+        uint256 gapQuantity = 0;
+        if (outputMinusFee <= bAssetPoolBalance) {
+            // pool balance enough
+        } else {
+            // pool balance not enough
+            gapQuantity = outputMinusFee.sub(bAssetPoolBalance);
         }
-        // 5.3. Withdraw to recipient
-        IPlatformIntegration(outputDetails.integrator).withdraw(_recipient, _output, swapOutput, outputDetails.bAsset.isTransferFeeCharged);
+
+        // handle swap fee
+        honestFeeInterface.chargeSwapFee(msg.sender, swapFee);
+
+        if (supplyBackToSaving > 0) {
+            // barrow gap quantity from saving, saving will send bAsset to msg.sender
+            uint256 barrowQuantity = honestSavingInterface.borrow(msg.sender, _output, gapQuantity);
+            uint256 supplyBackToSavingQuantity = honestSavingInterface.supply(supplyBackToSaving);
+        }
 
         output = swapOutput;
 
