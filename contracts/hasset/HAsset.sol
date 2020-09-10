@@ -1,4 +1,4 @@
-pragma solidity 0.5.16;
+pragma solidity ^0.5.0;
 
 // Libs
 import {Initializable} from "@openzeppelin/upgrades/contracts/Initializable.sol";
@@ -71,9 +71,9 @@ InitializableReentrancyGuard {
         InitializableReentrancyGuard._initialize();
 
         honestBasketInterface = IHonestBasket(_honestBasketInterface);
-        honestSavingsInterface = IHonestSaving(_honestSavingsInterface);
+        honestSavingsInterface = IHonestSavings(_honestSavingsInterface);
         bAssetPriceInterface = IBAssetPrice(_bAssetPriceInterface);
-        honestBonus = IHonestBonus(_honestBonusInterface);
+        honestBonusInterface = IHonestBonus(_honestBonusInterface);
         honestFeeInterface = IHonestFee(_honestFeeInterface);
         bAssetValidator = IBAssetValidator(_bAssetValidator);
     }
@@ -180,12 +180,13 @@ InitializableReentrancyGuard {
         // calc weight
         // query usd price for bAsset
         (uint256 bAssetPrice, uint256 bAssetPriceDecimals) = bAssetPriceInterface.getBassetPrice(_bAsset);
+        uint256 redeemFeeRate = honestFeeInterface.redeemFeeRate();
         if (bAssetPrice > 0 && bAssetPriceDecimals > 0) {
             uint256 priceScale = 10 ** bAssetPriceDecimals;
             if (bAssetPrice > priceScale) {
                 uint256 bonusWeightFactor = bAssetPrice.sub(priceScale);
                 if (bonusWeightFactor > 0) {
-                    uint256 feeFactor = redemptionFee.mulTruncate(priceScale);
+                    uint256 feeFactor = redeemFeeRate.mulTruncate(priceScale);
                     bonusWeightFactor = bonusWeightFactor.sub(feeFactor);
                     if (bonusWeightFactor > 0) {
                         uint256 bonusWeight = bonusWeightFactor.mulTruncateScale(quantityTransferred, priceScale);
@@ -227,6 +228,7 @@ InitializableReentrancyGuard {
         uint256 totalBonusWeight = 0;
         (uint256[] memory prices, uint256[] memory decimals) = bAssetPriceInterface.getBAssetsPrice(_bAssets);
         require(len == prices.length, "bAsset price array count mismatch");
+        uint256 redeemFeeRate = honestFeeInterface.redeemFeeRate();
         for (uint256 i = 0; i < len; i++) {
             uint256 bAssetQuantity = _bAssetQuantities[i];
             address bAssetAddress = _bAssets[i];
@@ -245,7 +247,7 @@ InitializableReentrancyGuard {
                     if (bAssetPrice > priceScale) {
                         uint256 bonusWeightFactor = bAssetPrice.sub(priceScale);
                         if (bonusWeightFactor > 0) {
-                            uint256 feeFactor = redemptionFee.mulTruncate(priceScale);
+                            uint256 feeFactor = redeemFeeRate.mulTruncate(priceScale);
                             bonusWeightFactor = bonusWeightFactor.sub(feeFactor);
                             if (bonusWeightFactor > 0) {
                                 uint256 bonusWeight = bonusWeightFactor.mulTruncateScale(quantityTransferred, priceScale);
@@ -337,7 +339,7 @@ InitializableReentrancyGuard {
         return _redeemTo(_bAssets, _bAssetQuantities, _recipient, false);
     }
 
-    function redeemMultiInProportion(uint256 calldata _bAssetQuantity)
+    function redeemMultiInProportion(uint256 _bAssetQuantity)
     external
     nonReentrant
     returns (uint256 hAssetRedeemed)
@@ -345,7 +347,7 @@ InitializableReentrancyGuard {
         return _redeemToInProportion(_bAssetQuantity, msg.sender);
     }
 
-    function redeemMultiInProportionTo(uint256 calldata _bAssetQuantity, address _recipient)
+    function redeemMultiInProportionTo(uint256 _bAssetQuantity, address _recipient)
     external
     nonReentrant
     returns (uint256 hAssetRedeemed)
@@ -373,14 +375,18 @@ InitializableReentrancyGuard {
     returns (uint256 hAssetRedeemed){
         require(_bAssetQuantity > 0, "Must redeem some bAssets");
         require(_recipient != address(0), "Must be a valid recipient");
+
         (address[] memory allBAssets, uint8[] memory statuses) = honestBasketInterface.getBasket();
         address[] memory bAssets = bAssetValidator.filterValidBAsset(allBAssets, statuses);
+
         require(bAssets.length > 0, "No valid bAssets");
+        uint256 len = bAssets.length;
         (uint256 sumBalance, uint256[] memory bAssetBalances) = honestBasketInterface.getBAssetsBalance(bAssets);
-        require(_bAssets.length == bAssetBalances.length, "Query bAsset balance failed");
+        require(bAssets.length == bAssetBalances.length, "Query bAsset balance failed");
         // calc bAssets quantity in Proportion
-        uint256[] memory bAssetQuantities = new uint256[bAssets.length];
-        for (uint256 i = 0; i < bAssets.length; i++) {
+
+        uint256[] memory bAssetQuantities = new uint256[len];
+        for (uint256 i = 0; i < len; i++) {
             uint256 quantity = _bAssetQuantity.mul(bAssetBalances[i]);
             bAssetQuantities[i] = quantity.div(sumBalance);
         }
@@ -434,6 +440,7 @@ InitializableReentrancyGuard {
         if (!_inProportion) {
             feeRate = honestFeeInterface.redeemFeeRate();
         }
+        uint256 len = _bAssetQuantities.length;
         for (uint256 i = 0; i < len; i++) {
             // check every target bAsset quantity
             require(_bAssetQuantities[i] <= _bAssetBalances[i], "Cannot redeem more bAsset than balance");
@@ -447,7 +454,7 @@ InitializableReentrancyGuard {
         uint256 totalFee = 0;
         uint256[] memory gapQuantities = new uint256[len];
         uint256 supplyBackToSaving = 0;
-        for (uint256 i = 0; i < len; i++) {
+        for (uint256 i = 0; i < _bAssetQuantities.length; i++) {
             uint256 bAssetBalance = _bAssetBalances[i];
             // Deduct the redemption fee, if any
             (uint256 fee, uint256 outputMinusFee) = _deductRedeemFee(_bAssets[i], _bAssetQuantities[i], feeRate);
@@ -536,7 +543,7 @@ InitializableReentrancyGuard {
         outputQuantity = outputMinusFee;
 
         uint256 bAssetPoolBalance = IERC20(_output).balanceOf(getBasketAddress());
-        uint256 quantitySwapOut = HAssetHelpers.transferTokens(getBasketAddress(), _recipient, _bAssets[i], false, HonestMath.min(outputMinusFee, bAssetPoolBalance));
+        uint256 quantitySwapOut = HAssetHelpers.transferTokens(getBasketAddress(), _recipient, _output, false, outputMinusFee);
         uint256 gapQuantity = 0;
         if (outputMinusFee <= bAssetPoolBalance) {
             // pool balance enough
@@ -594,7 +601,7 @@ InitializableReentrancyGuard {
         // 2.1. If output is hAsset(this), then calculate a simple mint
         if (isMint) {
             // Validate mint
-            (isValid, reason) = bAssetValidator.validateMint(_input, statuses[0], _quantity);
+            (bool isValid, string memory reason) = bAssetValidator.validateMint(_input, statuses[0], _quantity);
             if (!isValid) return (false, reason, 0);
             return (true, "", _quantity);
         }
