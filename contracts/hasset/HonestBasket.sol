@@ -8,6 +8,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {InitializablePausableModule} from "../common/InitializablePausableModule.sol";
 import {InitializableReentrancyGuard} from "../common/InitializableReentrancyGuard.sol";
 import {IHonestBasket} from "../interfaces/IHonestBasket.sol";
+import {IHonestSavings} from "../interfaces/IHonestSavings.sol";
 import {IPlatformIntegration} from "../interfaces/IPlatformIntegration.sol";
 
 contract HonestBasket is
@@ -30,10 +31,13 @@ InitializableReentrancyGuard {
     mapping(address => uint8) private bAssetsMap;
     mapping(address => uint8) private bAssetStatusMap;
 
+    IHonestSavings private honestSavingsInterface;
+
     function initialize(
         address _nexus,
         address _hAsset,
-        address[] calldata _bAssets
+        address[] calldata _bAssets,
+        address _honestSavingsInterface
     )
     external
     initializer
@@ -44,6 +48,8 @@ InitializableReentrancyGuard {
         require(_hAsset != address(0), "hAsset address is zero");
         require(_bAssets.length > 0, "Must initialise with some bAssets");
         hAsset = _hAsset;
+
+        honestSavingsInterface = IHonestSaving(_honestSavingsInterface);
 
         // Defaults
         maxBassets = uint8(20);
@@ -66,13 +72,16 @@ InitializableReentrancyGuard {
     returns (uint256[] memory){
         require(_bAssets.length > 0, "bAsset address must be valid");
 
+        uint256[] memory bAssetBalances = honestSavingsInterface.investmentOf(_bAssets);
         for (uint256 i = 0; i < _bAssets.length; i++) {
             (bool exist, uint8 index) = _isAssetInBasket(_bAssets[i]);
 
             if (exist) {
                 uint256 poolBalance = IERC20(_bAssets[i]).balanceOf(address(this));
+                bAssetBalances[i] = bAssetBalances[i].add(poolBalance);
             }
         }
+        return bAssetBalances;
     }
 
     /** @dev Basket all bAsset info */
