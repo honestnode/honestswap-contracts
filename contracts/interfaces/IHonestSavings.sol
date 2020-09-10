@@ -21,4 +21,6 @@ interface IHonestSavings {
     function borrow(address _account, address[] calldata _bAssets, uint256[] calldata _amounts) external returns (uint256);
 
     function supply(uint256 _amounts) external returns (uint256);
+
+    function investments() external view returns(address[] bAssets, uint256[] _amounts);
 }
