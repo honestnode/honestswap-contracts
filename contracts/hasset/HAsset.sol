@@ -509,23 +509,27 @@ InitializableReentrancyGuard {
         require(_recipient != address(0), "Missing recipient address");
         require(_quantity > 0, "Invalid quantity");
 
-        // 1. If the output is this mAsset, just mint
+        // 1. If the output is this hAsset, just mint
         if (_output == address(this)) {
             return _mintTo(_input, _quantity, _recipient);
         }
 
-        // 2. Grab all relevant info from the Manager
-        (bool isValid, string memory reason, BassetDetails memory inputDetails, BassetDetails memory outputDetails) =
-        honestBasketInterface.prepareSwapBassets(_input, _output, false);
-        require(isValid, reason);
+        // valid target bAssets
+        address[] bAssets = address[2];
+        bAssets[0] = _input;
+        bAssets[1] = _output;
+        (bool bAssetExist, uint8[] memory statuses) = honestBasketInterface.getBAssetsStatus(bAssets);
+        require(bAssetExist, "BAsset not exist in the Basket!");
+
+        (bool swapValid, string memory reason) = bAssetValidator.validateSwap(_input, statuses[0], _output, statuses[1], _quantity);
+        require(swapValid, reason);
 
         // 3. Deposit the input tokens
         // transfer bAsset to basket
-        uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, getBasketAddress(), _input, inputDetails.bAsset.isTransferFeeCharged, _quantity);
-        // Log the pool increase
-        honestBasketInterface.increasePoolBalance(inputDetails.index, quantityTransferred);
-        uint256 deposited = IPlatformIntegration(_integrator).deposit(_bAsset, quantityTransferred, _erc20TransferFeeCharged);
-        quantityDeposited = StableMath.min(deposited, _quantity);
+        uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, getBasketAddress(), _input, false, _quantity);
+
+//        uint256 deposited = IPlatformIntegration(_integrator).deposit(_bAsset, quantityTransferred, _erc20TransferFeeCharged);
+//        quantityDeposited = StableMath.min(deposited, _quantity);
 
         uint256 quantitySwappedIn = _depositTokens(_input, inputDetails.integrator, inputDetails.bAsset.isTransferFeeCharged, _quantity);
         // 3.1. Update the input balance
