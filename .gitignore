@@ -75,3 +75,6 @@ target
 *.DS_Store
 bin
 output
+
+.secret
+.infura
