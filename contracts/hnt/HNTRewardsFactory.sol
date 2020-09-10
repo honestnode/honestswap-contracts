@@ -1,3 +1,5 @@
+pragma solidity ^0.5.0;
+
 import '@openzeppelin/contracts/ownership/Ownable.sol';
 import "./IHNTRewards.sol";
 
@@ -6,11 +8,11 @@ contract HNTRewardsFactory is IHNTRewards, Ownable {
     address public rewardsContract;
     IHNTRewards private _delegator;
 
-    constructor(address _contract) {
+    constructor(address _contract) public {
         setDelegator(_contract);
     }
 
-    function setDelegator(address _contract) external onlyOwner {
+    function setDelegator(address _contract) public onlyOwner {
         require(_contract != address(0), "Address must be valid");
         rewardsContract = _contract;
         _delegator = IHNTRewards(_contract);
@@ -40,11 +42,11 @@ contract HNTRewardsFactory is IHNTRewards, Ownable {
         return _delegator.sharesOf(_account);
     }
 
-    function deposit(uint256 _amount) external returns (uint256 deposits) {
+    function deposit(uint256 _amount) external returns (bool) {
         return _delegator.deposit(_amount);
     }
 
-    function redeem(uint256 _amount) external returns (uint256 deposits) {
+    function redeem(uint256 _amount) external returns (bool) {
         return _delegator.redeem(_amount);
     }
 }
