@@ -205,11 +205,7 @@ InitializableReentrancyGuard {
     }
 
     /** @dev Mint Multi */
-    function _mintTo(
-        address[] memory _bAssets,
-        uint256[] memory _bAssetQuantities,
-        address _recipient
-    )
+    function _mintTo(address[] memory _bAssets, uint256[] memory _bAssetQuantities, address _recipient)
     internal
     returns (uint256 hAssetMinted)
     {
@@ -285,10 +281,7 @@ InitializableReentrancyGuard {
      * @param _bAssetQuantity   Units of the bAsset to redeem
      * @return hAssetRedeemed     Relative number of hAsset units burned to pay for the bAssets
      */
-    function redeem(
-        address _bAsset,
-        uint256 _bAssetQuantity
-    )
+    function redeem(address _bAsset, uint256 _bAssetQuantity)
     external
     nonReentrant
     returns (uint256 hAssetRedeemed)
@@ -304,11 +297,7 @@ InitializableReentrancyGuard {
      * @param _recipient        Address to credit with withdrawn bAssets
      * @return hAssetRedeemed     Relative number of hAsset units burned to pay for the bAssets
      */
-    function redeemTo(
-        address _bAsset,
-        uint256 _bAssetQuantity,
-        address _recipient
-    )
+    function redeemTo(address _bAsset, uint256 _bAssetQuantity, address _recipient)
     external
     nonReentrant
     returns (uint256 hAssetRedeemed)
@@ -321,19 +310,14 @@ InitializableReentrancyGuard {
      *      relative HAsset quantity from the sender. Sender also incurs a small fee, if any.
      * @param _bAssets          Address of the bAssets to redeem
      * @param _bAssetQuantities Units of the bAssets to redeem
-     * @param _recipient        Address to credit with withdrawn bAssets
      * @return hAssetRedeemed     Relative number of hAsset units burned to pay for the bAssets
      */
-    function redeemMulti(
-        address[] calldata _bAssets,
-        uint256[] calldata _bAssetQuantities,
-        bool _inProportion
-    )
+    function redeemMulti(address[] calldata _bAssets, uint256[] calldata _bAssetQuantities)
     external
     nonReentrant
     returns (uint256 hAssetRedeemed)
     {
-        return _redeemTo(_bAssets, _bAssetQuantities, msg.sender, _inProportion);
+        return _redeemTo(_bAssets, _bAssetQuantities, msg.sender, false);
     }
 
     /**
@@ -344,17 +328,28 @@ InitializableReentrancyGuard {
      * @param _recipient        Address to credit with withdrawn bAssets
      * @return hAssetRedeemed     Relative number of hAsset units burned to pay for the bAssets
      */
-    function redeemMultiTo(
-        address[] calldata _bAssets,
-        uint256[] calldata _bAssetQuantities,
-        address _recipient,
-        bool _inProportion
-    )
+    function redeemMultiTo(address[] calldata _bAssets, uint256[] calldata _bAssetQuantities, address _recipient)
     external
     nonReentrant
     returns (uint256 hAssetRedeemed)
     {
-        return _redeemTo(_bAssets, _bAssetQuantities, _recipient, _inProportion);
+        return _redeemTo(_bAssets, _bAssetQuantities, _recipient, false);
+    }
+
+    function redeemMultiInProportion(uint256 calldata _bAssetQuantity)
+    external
+    nonReentrant
+    returns (uint256 hAssetRedeemed)
+    {
+        return _redeemToInProportion(_bAssetQuantity, msg.sender);
+    }
+
+    function redeemMultiInProportionTo(uint256 calldata _bAssetQuantity, address _recipient)
+    external
+    nonReentrant
+    returns (uint256 hAssetRedeemed)
+    {
+        return _redeemToInProportion(_bAssetQuantity, _recipient);
     }
 
     /***************************************
@@ -362,19 +357,38 @@ InitializableReentrancyGuard {
     ****************************************/
 
     /** @dev Casting to arrays for use in redeemMulti func */
-    function _redeemTo(
-        address _bAsset,
-        uint256 _bAssetQuantity,
-        address _recipient
-    )
+    function _redeemTo(address _bAsset, uint256 _bAssetQuantity, address _recipient)
     internal
-    returns (uint256 hAssetRedeemed)
-    {
+    returns (uint256 hAssetRedeemed){
         address[] memory bAssets = new address[](1);
         uint256[] memory quantities = new uint256[](1);
         bAssets[0] = _bAsset;
         quantities[0] = _bAssetQuantity;
         return _redeemTo(bAssets, quantities, _recipient, false);
+    }
+
+    function _redeemToInProportion(uint256 _bAssetQuantity, address _recipient)
+    internal
+    returns (uint256 hAssetRedeemed){
+        require(_bAssetQuantity > 0, "Must redeem some bAssets");
+        require(_recipient != address(0), "Must be a valid recipient");
+        (address[] memory allBAssets, uint8[] memory statuses) = honestBasketInterface.getBasket();
+        address[] memory bAssets = bAssetValidator.filterValidBAsset(allBAssets, statuses);
+        require(bAssets.length > 0, "No valid bAssets");
+        uint256[] memory bAssetBalances = honestBasketInterface.getBasketBalance(bAssets);
+        require(_bAssets.length == bAssetBalances.length, "Query bAsset balance failed");
+        uint256 totalBAssetBalance = 0;
+        for (uint256 i = 0; i < bAssetBalances.length; i++) {
+            totalBAssetBalance.add(bAssetBalances[i]);
+        }
+        // calc bAssets quantity in Proportion
+        uint256[] memory bAssetQuantities = new uint256[bAssets.length];
+        for (uint256 i = 0; i < bAssets.length; i++) {
+            uint256 quantity = _bAssetQuantity.mul(bAssetBalances[i]);
+            bAssetQuantities[i] = quantity.div(totalBAssetBalance);
+        }
+
+        return _handleRedeem(bAssets, bAssetQuantities, bAssetBalances, _recipient, true);
     }
 
     /** @dev Redeem hAsset for one or more bAssets */
@@ -403,30 +417,41 @@ InitializableReentrancyGuard {
         uint256[] memory bAssetBalances = honestBasketInterface.getBasketBalance(_bAssets);
         require(len == bAssetBalances.length, "Query bAsset balance failed");
 
+        return _handleRedeem(_bAssets, _bAssetQuantities, bAssetBalances, _recipient, _inProportion);
+    }
+
+    function _handleRedeem(
+        address[] memory _bAssets,
+        uint256[] memory _bAssetQuantities,
+        uint256[] memory _bAssetBalances,
+        address _recipient,
+        bool _inProportion
+    )
+    internal
+    returns (uint256 hAssetRedeemed)
+    {
         // Calc total redeemed hAsset quantity
         uint256 hAssetQuantity = 0;
-        for (uint256 i = 0; i < len; i++) {
-            // check every target bAsset quantity
-            require(_bAssetQuantities[i] <= bAssetBalances[i], "Cannot redeem more bAsset than balance");
-            hAssetQuantity = hAssetQuantity.add(_bAssetQuantities[i]);
-        }
-        require(hAssetQuantity > 0, "Must redeem some bAssets");
-
-        // Redemption has fee? Fetch the rate
+        // Redemption fee
         uint256 feeRate = 0;
         if (!_inProportion) {
             feeRate = honestFeeInterface.redeemFeeRate();
         }
+        for (uint256 i = 0; i < len; i++) {
+            // check every target bAsset quantity
+            require(_bAssetQuantities[i] <= _bAssetBalances[i], "Cannot redeem more bAsset than balance");
+            hAssetQuantity = hAssetQuantity.add(_bAssetQuantities[i]);
+        }
+        require(hAssetQuantity > 0, "Must redeem some bAssets");
 
         // Apply fees, burn hAsset and return bAsset to recipient
-        //        _settleRedemption(_recipient, hAssetQuantity, props.bAssets, _bAssetQuantities, props.indexes, props.integrators, fee);
         _burn(msg.sender, hAssetQuantity);
 
         uint256 totalFee = 0;
         uint256[] gapQuantities = new uint256[len];
         uint256 supplyBackToSaving = 0;
         for (uint256 i = 0; i < len; i++) {
-            uint256 bAssetBalance = bAssetBalances[i];
+            uint256 bAssetBalance = _bAssetBalances[i];
             // Deduct the redemption fee, if any
             (uint256 fee, uint256 outputMinusFee) = _deductRedeemFee(_bAssets[i], _bAssetQuantities[i], feeRate);
             totalFee.add(fee);
@@ -442,9 +467,11 @@ InitializableReentrancyGuard {
             }
         }
         if (totalFee > 0) {
+            // handle fee
             honestFeeInterface.chargeRedeemFee(msg.sender, totalFee);
         }
         if (supplyBackToSaving > 0) {
+            // barrow gap quantity from saving, saving will send bAsset to msg.sender
             uint256 barrowQuantity = honestSavingInterface.borrow(_bAssets, gapQuantities);
             uint256 supplyBackToSavingQuantity = honestSavingInterface.supply(supplyBackToSaving);
         }

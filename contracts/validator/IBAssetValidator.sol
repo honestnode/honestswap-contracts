@@ -22,4 +22,7 @@ interface IBAssetValidator {
     function validateSwap(address _inputBAsset, uint8 _inputBAssetStatus, address _outputBAsset, uint8 _outputBAssetStatus, uint256 _quantity)
     external pure returns (bool, string memory);
 
+    function filterValidBAsset(address[] calldata _bAssets, uint8[] calldata _bAssetStatus)
+    external pure returns (address[] memory validBAssets);
+
 }
