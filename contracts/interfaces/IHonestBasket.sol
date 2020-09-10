@@ -13,6 +13,6 @@ interface IHonestBasket {
     function getBAssetsStatus(address[] calldata _bAssets) external returns (bool, uint8[] memory);
 
     /** @dev Setters for Gov to update Basket composition */
-    function addBAsset(address _bAsset, uint8 _status) external returns (bool);
+    function addBAsset(address _bAsset, uint8 _status) external returns (uint8 index);
 
 }
