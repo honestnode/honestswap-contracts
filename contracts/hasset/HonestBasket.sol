@@ -20,9 +20,7 @@ InitializableReentrancyGuard {
 
     // Events for Basket composition changes
     event BassetAdded(address indexed bAsset, uint8 bAssetIndex);
-    event BassetRemoved(address indexed bAsset);
     event BassetStatusChanged(address indexed bAsset, uint8 status);
-    event BasketStatusChanged();
 
     address public hAsset;
 
@@ -165,30 +163,19 @@ InitializableReentrancyGuard {
         return (true, index);
     }
 
-    function updateBAssetStatus(address _bAsset, uint8 newStatus)
+    function updateBAssetStatus(address _bAsset, uint8 _newStatus)
     external
     managerOrGovernor
+    returns (uint8 index)
     {
         (bool exists, uint256 i) = _isAssetInBasket(_bAsset);
         require(exists, "bAsset must exist");
 
-        if (newStatus != bAssetStatusMap[_bAsset]) {
-            bAssetStatuses[_bAsset] = newStatus;
-            emit BassetStatusChanged(_bAsset, newStatus);
+        if (_newStatus != bAssetStatusMap[_bAsset]) {
+            bAssetStatuses[_bAsset] = _newStatus;
+            index = i;
+            emit BassetStatusChanged(_bAsset, _newStatus);
         }
     }
 
-    function negateIsolation(address _bAsset)
-    external
-    managerOrGovernor
-    {
-        (bool exists, uint256 i) = _isAssetInBasket(_bAsset);
-        require(exists, "bAsset must exist");
-
-        uint currentStatus = bAssetStatusMap[_bAsset];
-        if (currentStatus != 0) {
-            bAssetStatusMap[_bAsset] = 0;
-            emit BassetStatusChanged(_bAsset, 0);
-        }
-    }
 }
