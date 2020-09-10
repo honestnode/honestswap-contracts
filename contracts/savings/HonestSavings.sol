@@ -46,6 +46,8 @@ contract HonestSavings is IHonestSavings, Ownable {
     function deposit(uint256 _amount) external returns (uint256) {
         require(_amount > 0, "deposit must be greater than 0");
 
+        IERC20(_hAsset).safeTransferFrom(_msgSender(), address(this), _amount);
+
         _savings[_msgSender()] = _savings[_msgSender()].add(_amount);
         _totalSavings = _totalSavings.add(_amount);
 
@@ -57,6 +59,7 @@ contract HonestSavings is IHonestSavings, Ownable {
 
         emit SavingsDeposited(_msgSender(), _amount, shares);
         return shares;
+
     }
 
     function withdraw(uint256 _credits) external returns (uint256) {
@@ -71,6 +74,8 @@ contract HonestSavings is IHonestSavings, Ownable {
         _totalSavings = _totalSavings.sub(amount);
 
         _collect(_msgSender(), amount);
+
+        IERC20(_hAsset).safeTransfer(_msgSender(), amount);
 
         emit SavingsRedeemed(_msgSender(), _credits, amount);
         return amount;
@@ -126,14 +131,21 @@ contract HonestSavings is IHonestSavings, Ownable {
     }
 
     function _invest(address _account, uint256 _amount) internal {
-        IERC20(_hAsset).safeTransferFrom(_msgSender(), _investmentIntegration, _amount);
-        // TODO: hAsset => bAssets => invest
-//        IInvestmentIntegration(_investmentIntegration).invest('', _amount);
+        // TODO:
+        // 1. HAsset.redeemInProportion() ?
+        // or just keep the hAsset and get from basket
+        // the 2nd solution will minus totalBalanceOf hAsset
+        // 2. for(bAsset, amount in 1) {
+        //   IInvestmentIntegration(_investmentIntegration).invest(bAsset, amount);
+        // }
     }
 
     function _collect(address _account, uint256 _shares) internal {
         // TODO:
-        IInvestmentIntegration(_investmentIntegration).collect(_account, _shares);
-        IERC20(_hAsset).safeTransfer(_msgSender(), amount);
+        // 1. find current investment bAssets rate
+        // 2. for(rate in 1) {
+        //   IInvestmentIntegration(_investmentIntegration).collect(_shares * rate);
+        // }
+        // 3. HAsset.mintMultiTo(_account, [2])
     }
 }
