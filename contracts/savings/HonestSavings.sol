@@ -46,7 +46,7 @@ contract HonestSavings is IHonestSavings, Ownable {
 
     function setBasket(address _basketContract) external onlyOwner {
         require(_basketContract != address(0), "address must be valid");
-        _basket = _hAssetContract;
+        _basket = _basketContract;
     }
 
     function setInvestmentIntegration(address _investmentContract) external onlyOwner {
@@ -161,7 +161,7 @@ contract HonestSavings is IHonestSavings, Ownable {
 
         int length = assets.length;
         for (int i = 0; i < length; ++i) {
-            IInvestmentIntegration(_investmentIntegration).invest(assets[i], amount);
+            IInvestmentIntegration(_investmentIntegration).invest(assets[i], amounts[i]);
             // TODO: save the shares
         }
     }

@@ -179,7 +179,7 @@ InitializableReentrancyGuard {
         uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, getBasketAddress(), _bAsset, false, _bAssetQuantity);
         // calc weight
         // query usd price for bAsset
-        (uint256 bAssetPrice, uint256 bAssetPriceDecimals) = bAssetPriceInterface.getBassetPrice(_bAsset);
+        (uint256 bAssetPrice, uint256 bAssetPriceDecimals) = bAssetPriceInterface.getBAssetPrice(_bAsset);
         uint256 redeemFeeRate = honestFeeInterface.redeemFeeRate();
         if (bAssetPrice > 0 && bAssetPriceDecimals > 0) {
             uint256 priceScale = 10 ** bAssetPriceDecimals;
@@ -388,7 +388,7 @@ InitializableReentrancyGuard {
         uint256[] memory bAssetQuantities = new uint256[](len);
         for (uint256 i = 0; i < len; i++) {
             uint256 quantity = _bAssetQuantity.mul(bAssetBalances[i]);
-            bAssetQuantities[i] = quantity.div(sumBalance);
+            bAssetQuantities.push(quantity.div(sumBalance));
         }
 
         return _handleRedeem(bAssets, bAssetQuantities, bAssetBalances, _recipient, true);
@@ -498,12 +498,7 @@ InitializableReentrancyGuard {
      * @param _recipient    Address to credit output asset
      * @return output       Units of output asset returned
      */
-    function swap(
-        address _input,
-        address _output,
-        uint256 _quantity,
-        address _recipient
-    )
+    function swap(address _input, address _output, uint256 _quantity, address _recipient)
     external
     nonReentrant
     returns (uint256 outputQuantity)

@@ -56,12 +56,10 @@ contract BAssetValidator is IBAssetValidator {
     external
     pure
     returns (address[] memory validBAssets){
-        uint256 index = 0;
-        validBAssets = new address[_bAssets.length];
+        validBAssets = new address[](_bAssets.length);
         for (uint256 i = 0; i < _bAssetStatus.length; i++) {
             if (_bAssetStatus[i] == BAssetStatus.Normal) {
-                validBAssets[index] = _bAssets[i];
-                index = index.add(1);
+                validBAssets.push(_bAssets[i]);
             }
         }
         return validBAssets;
