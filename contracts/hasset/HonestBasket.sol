@@ -3,6 +3,7 @@ pragma solidity ^0.5.0;
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {Initializable} from "@openzeppelin/upgrades/contracts/Initializable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import {InitializablePausableModule} from "../common/InitializablePausableModule.sol";
 import {InitializableReentrancyGuard} from "../common/InitializableReentrancyGuard.sol";
@@ -71,7 +72,7 @@ InitializableReentrancyGuard {
 
         balance = IERC20(_bAsset).balanceOf(address(this));
 
-        address[] memory _bAssets = new address[1];
+        address[] memory _bAssets = new address[](1);
         _bAssets[0] = _bAsset;
         uint256[] memory bAssetBalances = honestSavingsInterface.investmentOf(_bAssets);
         if (bAssetBalances.length > 0) {
@@ -120,7 +121,7 @@ InitializableReentrancyGuard {
     external view
     returns (address[] memory allBAssets, uint8[] memory statuses){
         allBAssets = bAssets;
-        statuses = uint8[](bAssets.length);
+        statuses = new uint8[](bAssets.length);
         for (uint256 i = 0; i < bAssets.length; i++) {
             statuses[i] = bAssetStatusMap[bAssets[i]];
         }
@@ -141,7 +142,7 @@ InitializableReentrancyGuard {
     function getBAssetsStatus(address[] calldata _bAssets) external returns (bool, uint8[] memory){
         require(_bAssets.length > 0, "bAsset address must be valid");
         bool allExist = true;
-        uint8[] memory statuses = uint8[_bAssets.length];
+        uint8[] memory statuses = new uint8[](_bAssets.length);
         for (uint256 i = 0; i < _bAssets.length; i++) {
             (bool exist, uint8 index) = _isAssetInBasket(_bAssets[i]);
             if (exist) {
@@ -213,7 +214,6 @@ InitializableReentrancyGuard {
 
         if (_newStatus != bAssetStatusMap[_bAsset]) {
             bAssetStatusMap[_bAsset] = _newStatus;
-            index = i;
             emit BassetStatusChanged(_bAsset, _newStatus);
         }
     }
@@ -228,21 +228,23 @@ InitializableReentrancyGuard {
     returns (address[] memory, uint256[] memory) {
         require(_integration != address(0), "integration address must be valid");
         require(_totalAmounts > 0, "amounts must greater than 0");
-        int length = _expectAssets.length;
+        uint256 length = _expectAssets.length;
         require(length > 0, "assets length must greater than 0");
 
         (address[] memory assets, uint256[] memory balances, uint256 totalBalance) = _getSortedBalances(_expectAssets);
         require(_totalAmounts <= totalBalance, "insufficient balance");
 
         uint256[] memory amounts = new uint256[](length);
-        uint256 distributed;
-        for (int i = 0; i < length - 1; ++i) {
+        uint256 distributed = 0;
+        for (uint256 i = 0; i < length - 1; ++i) {
             amounts[i] = _totalAmounts.mul(balances[i]).div(totalBalance);
             distributed = distributed.add(amounts[i]);
-            IERC20(assets[i]).safeTransfer(_integration, amounts[i]);
+//            IERC20(assets[i]).safeTransfer(_integration, amounts[i]);
+            SafeERC20.safeTransfer(IERC20(assets[i]), _integration, amounts[i]);
         }
         amounts[length - 1] = _totalAmounts - distributed;
-        IERC20(assets[length - 1]).safeTransfer(_integration, amounts[length - 1]);
+        SafeERC20.safeTransfer(IERC20(assets[length - 1]), _integration, amounts[length - 1]);
+        //        IERC20(assets[length - 1]).safeTransfer(_integration, amounts[length - 1]);
 
         return (assets, amounts);
     }
@@ -250,11 +252,11 @@ InitializableReentrancyGuard {
     function _getSortedBalances(address[] memory _bAssets)
     internal view
     returns (address[] memory, uint256[] memory, uint256) {
-        int length = _bAssets.length;
-        uint256[] memory shares = new uint256(length);
-        uint256 totalShares;
-        uint[] memory result = new uint[](length);
-        for (int i = 0; i < length; ++i) {
+        uint256 length = _bAssets.length;
+        uint256[] memory shares = new uint256[](length);
+        uint256 totalShares = 0;
+//        uint[] memory result = new uint[](length);
+        for (uint256 i = 0; i < length; ++i) {
             // TODO: sort the balance
             shares[i] = bAssetsMap[_bAssets[i]];
             totalShares = totalShares.add(shares[i]);

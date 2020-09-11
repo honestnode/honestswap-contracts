@@ -514,7 +514,7 @@ InitializableReentrancyGuard {
         }
 
         // valid target bAssets
-        address[] memory bAssets = address[2];
+        address[] memory bAssets = new address[](2);
         bAssets[0] = _input;
         bAssets[1] = _output;
         (bool bAssetExist, uint8[] memory statuses) = honestBasketInterface.getBAssetsStatus(bAssets);
@@ -575,7 +575,6 @@ InitializableReentrancyGuard {
         uint256 _quantity
     )
     external
-    view
     returns (bool, string memory, uint256 outputQuantity)
     {
         require(_input != address(0) && _output != address(0), "Invalid swap asset addresses");
@@ -586,7 +585,7 @@ InitializableReentrancyGuard {
 
 
         // valid target bAssets
-        address[] memory bAssets = address[2];
+        address[] memory bAssets = new address[](2);
         bAssets[0] = _input;
         bAssets[1] = _output;
         (bool bAssetExist, uint8[] memory statuses) = honestBasketInterface.getBAssetsStatus(bAssets);
