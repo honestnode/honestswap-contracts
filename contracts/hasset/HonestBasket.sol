@@ -222,14 +222,6 @@ InitializableReentrancyGuard {
         }
     }
 
-    /**
-     * total: 100
-     * bAssets: [32, 3000, 1, 0]
-     * expected: [0.01, 99.99, 0, 0]
-     * total: 6021
-     * bAssets: [1, 0, 3010, 3011]
-     * expected: [0, 0, 3010, 3011]
-     */
     function swapBAssets(address _integration, uint256 _totalAmount, address[] calldata _expectAssets)
     external
     returns (uint256[] memory) {

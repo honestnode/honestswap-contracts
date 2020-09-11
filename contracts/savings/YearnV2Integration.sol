@@ -41,7 +41,7 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         return IERC20(yToken).balanceOf(address(this)).sub(before);
     }
 
-    function collect(address _account, address _asset, uint256 _shares) external onlyWhitelisted returns (uint256) {
+    function collect(address _asset, uint256 _shares) external onlyWhitelisted returns (uint256) {
         require(_shares > 0, "shares must greater than 0");
 
         yTokenV2 yToken = yTokenV2(_contractOf(_asset));
@@ -49,13 +49,24 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         yToken.withdraw(_shares);
 
         require(amount <= IERC20(_asset).balanceOf(address(this)), "insufficient balance");
-        IERC20(_asset).safeTransfer(_account, amount);
+        IERC20(_asset).safeTransfer(_msgSender(), amount);
 
         return amount;
     }
 
     function balanceOf(address _asset) external view returns (uint256) {
         return _balanceOf(_asset);
+    }
+
+    function balances() external view returns (address[] memory, uint256[] memory, uint256) {
+        uint256 length = _assets.length;
+        uint256[] memory aBalances = new uint256[](length);
+        uint256 totalBalances;
+        for(uint256 i = 0; i < length; ++i) {
+            aBalances[i] = _balanceOf(_assets[i]);
+            totalBalances = totalBalances.add(aBalances[i]);
+        }
+        return (_assets, aBalances, totalBalances);
     }
 
     function totalBalance() external view returns (uint256) {

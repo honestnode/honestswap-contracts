@@ -27,4 +27,7 @@ interface IHonestBasket {
 
     function swapBAssets(address _integration, uint256 _totalAmounts, address[] calldata _expectAssets)
     external returns (uint256[] memory);
+
+    function distributeHAssets(address _account, address[] calldata _bAssets, uint256[] calldata _amounts, uint256 _interests)
+    external;
 }

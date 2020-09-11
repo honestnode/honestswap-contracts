@@ -74,14 +74,13 @@ contract HonestSavings is IHonestSavings, Ownable {
         _savings[_msgSender()] = _savings[_msgSender()].add(_amount);
         _totalSavings = _totalSavings.add(_amount);
 
-        uint256 shares = _savingsToShares(_amount);
-        _shares[_msgSender()] = _shares[_msgSender()].add(shares);
-        _totalShares = _totalShares.add(shares);
+        (uint256[] memory shares, uint256 totalShares) = _invest(_msgSender(), _amount);
 
-        _invest(_msgSender(), _amount);
+        _shares[_msgSender()] = _shares[_msgSender()].add(totalShares);
+        _totalShares = _totalShares.add(totalShares);
 
-        emit SavingsDeposited(_msgSender(), _amount, shares);
-        return shares;
+        emit SavingsDeposited(_msgSender(), _amount, totalShares);
+        return totalShares;
 
     }
 
@@ -89,16 +88,15 @@ contract HonestSavings is IHonestSavings, Ownable {
         require(_credits > 0, "withdraw must be greater than 0");
         require(_credits <= _shares[_msgSender()], "insufficient shares");
 
+        uint256 amount = _credits.mul(_savings[_msgSender()]).div(_shares[_msgSender()]);
+
         _shares[_msgSender()] = _shares[_msgSender()].sub(_credits);
         _totalShares = _totalShares.sub(_credits);
 
-        uint256 amount = _sharesToSavings(_credits);
         _savings[_msgSender()] = _savings[_msgSender()].sub(amount);
         _totalSavings = _totalSavings.sub(amount);
 
-        _collect(_msgSender(), amount);
-
-        IERC20(_hAsset).safeTransfer(_msgSender(), amount);
+        _collect(_msgSender(), _credits, amount);
 
         emit SavingsRedeemed(_msgSender(), _credits, amount);
         return amount;
@@ -131,6 +129,10 @@ contract HonestSavings is IHonestSavings, Ownable {
         return 0;
     }
 
+    function swap(address _account, address[] calldata _bAssets, uint256[] calldata _borrows, uint256[] calldata _supplies) external {
+        // TODO: implement
+    }
+
     function borrow(address _account, address[] calldata _bAssets, uint256[] calldata _amounts) external returns (uint256) {
         // TODO: implement
         return 0;
@@ -141,37 +143,61 @@ contract HonestSavings is IHonestSavings, Ownable {
         return 0;
     }
 
+    function investments() external view returns (address[] memory, uint256[] memory) {
+        (address[] memory _assets, uint256[] memory _balances, uint256 totalBalances) = IInvestmentIntegration(_investmentIntegration).balances();
+        return (_assets, _balances);
+    }
+
+    function investmentOf(address[] calldata _bAssets) external view returns (uint256[] memory) {
+        uint256[] memory amounts = new uint256[](_bAssets.length);
+        for (uint256 i = 0; i < _bAssets.length; ++i) {
+            amounts[i] = IInvestmentIntegration(_investmentIntegration).balanceOf(_bAssets[i]);
+        }
+        return amounts;
+    }
+
     function _netValue() internal view returns (uint256) {
         return IInvestmentIntegration(_investmentIntegration).totalBalance().mul(1e18).div(_totalSavings);
     }
 
     function _savingsToShares(uint256 _amount) internal view returns (uint256) {
-        return _amount.mul(1e18).div(_netValue());
+        return _amount.mul(uint256(1e18)).div(_netValue());
     }
 
     function _sharesToSavings(uint256 _credits) internal view returns (uint256) {
-        return _credits.mul(_netValue()).div(1e18);
+        return _credits.mul(_netValue()).div(uint256(1e18));
     }
 
-    function _invest(address _account, uint256 _amount) internal {
+    function _invest(address _account, uint256 _amount) internal returns (uint256[] memory, uint256) {
 
         IERC20(_hAsset).safeApprove(_basket, _amount);
         address[] memory assets = IInvestmentIntegration(_investmentIntegration).assets();
         uint256[] memory amounts = IHonestBasket(_basket).swapBAssets(_investmentIntegration, _amount, assets);
 
         uint256 length = assets.length;
+        uint256[] memory shares = new uint256[](length);
+        uint256 total;
         for (uint256 i = 0; i < length; ++i) {
-            IInvestmentIntegration(_investmentIntegration).invest(assets[i], amounts[i]);
-            // TODO: save the shares
+            shares[i] = IInvestmentIntegration(_investmentIntegration).invest(assets[i], amounts[i]);
+            total = total.add(shares[i]);
         }
+        return (shares, total);
     }
 
-    function _collect(address _account, uint256 _credits) internal {
-        // TODO:
-        // 1. find current investment bAssets rate
-        // 2. for(rate in 1) {
-        //   IInvestmentIntegration(_investmentIntegration).collect(_shares * rate);
-        // }
-        // 3. HAsset.mintMultiTo(_account, [2])
+    function _collect(address _account, uint256 _credits, uint256 _amount) internal {
+
+        (address[] memory bAssets, uint256[] memory balances, uint256 totalBalance) =
+        IInvestmentIntegration(_investmentIntegration).balances();
+
+        uint256[] memory amounts = new uint256[](bAssets.length);
+        uint256 totalAmount;
+        for (uint256 i = 0; i < bAssets.length; ++i) {
+            uint256 shares = _credits.mul(balances[i]).div(totalBalance);
+            amounts[i] = IInvestmentIntegration(_investmentIntegration).collect(bAssets[i], shares);
+            totalAmount = totalAmount.add(amounts[i]);
+            IERC20(bAssets[i]).approve(_basket, amounts[i]);
+        }
+
+        IHonestBasket(_basket).distributeHAssets(_account, bAssets, amounts, totalAmount.sub(_amount));
     }
 }

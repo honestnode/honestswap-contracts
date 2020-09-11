@@ -29,7 +29,7 @@ interface IHonestSavings {
     // deprecated
     function supply(uint256 _amounts) external returns (uint256);
 
-    function investments() external view returns(address[] memory _bAssets, uint256[] memory _amounts);
+    function investments() external view returns(address[] memory, uint256[] memory);
 
     function investmentOf(address[] calldata _bAssets) external view returns(uint256[] memory);
 }
