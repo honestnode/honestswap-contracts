@@ -130,7 +130,7 @@ contract YfiIntegration is InitializableAbstractIntegration {
         // approve the pool to spend the bAsset
         for (uint i = 0; i < bAssetCount; i++) {
             address bAsset = bAssetsMapped[i];
-            HassetHelpers.safeInfiniteApprove(bAsset, bAssetToPToken[bAsset]);
+            HAssetHelpers.safeInfiniteApprove(bAsset, bAssetToPToken[bAsset]);
         }
     }
 
@@ -144,7 +144,7 @@ contract YfiIntegration is InitializableAbstractIntegration {
     internal
     {
         // approve the pool to spend the bAsset
-        HassetHelpers.safeInfiniteApprove(_bAsset, _pToken);
+        HAssetHelpers.safeInfiniteApprove(_bAsset, _pToken);
     }
 
     /***************************************

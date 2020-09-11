@@ -47,7 +47,7 @@ InitializableReentrancyGuard {
         require(_bAssets.length > 0, "Must initialise with some bAssets");
         hAsset = _hAsset;
 
-        honestSavingsInterface = IHonestSaving(_honestSavingsInterface);
+        honestSavingsInterface = IHonestSavings(_honestSavingsInterface);
 
         // Defaults
         maxBassets = uint8(20);
@@ -102,12 +102,12 @@ InitializableReentrancyGuard {
     function getBasketAllBalance() external view returns (uint256 sumBalance, address[] memory allBAssets, uint256[] memory balances){
         allBAssets = bAssets;
         sumBalance = 0;
-        uint256[] memory bAssetBalances = honestSavingsInterface.investmentOf(_bAssets);
-        for (uint256 i = 0; i < _bAssets.length; i++) {
-            (bool exist, uint8 index) = _isAssetInBasket(_bAssets[i]);
+        uint256[] memory bAssetBalances = honestSavingsInterface.investmentOf(bAssets);
+        for (uint256 i = 0; i < bAssets.length; i++) {
+            (bool exist, uint8 index) = _isAssetInBasket(bAssets[i]);
 
             if (exist) {
-                uint256 poolBalance = IERC20(_bAssets[i]).balanceOf(address(this));
+                uint256 poolBalance = IERC20(bAssets[i]).balanceOf(address(this));
                 bAssetBalances[i] = bAssetBalances[i].add(poolBalance);
                 sumBalance = sumBalance.add(bAssetBalances[i]);
             }
@@ -141,7 +141,7 @@ InitializableReentrancyGuard {
     function getBAssetsStatus(address[] calldata _bAssets) external returns (bool, uint8[] memory){
         require(_bAssets.length > 0, "bAsset address must be valid");
         bool allExist = true;
-        uint8[] statuses = uint8[_bAssets.length];
+        uint8[] memory statuses = uint8[_bAssets.length];
         for (uint256 i = 0; i < _bAssets.length; i++) {
             (bool exist, uint8 index) = _isAssetInBasket(_bAssets[i]);
             if (exist) {
@@ -212,7 +212,7 @@ InitializableReentrancyGuard {
         require(exists, "bAsset must exist");
 
         if (_newStatus != bAssetStatusMap[_bAsset]) {
-            bAssetStatuses[_bAsset] = _newStatus;
+            bAssetStatusMap[_bAsset] = _newStatus;
             index = i;
             emit BassetStatusChanged(_bAsset, _newStatus);
         }
