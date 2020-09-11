@@ -22,53 +22,57 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole {
     using Address for address;
     using SafeMath for uint256;
 
-    address[] private _bAssets;
+    address[] private _assets;
     mapping(address => address) private _contracts;
 
-    function invest(address _bAsset, uint256 _amount) external onlyWhitelisted nonReentrant returns (uint256) {
+    function assets() external view returns (address[] memory) {
+        return _assets;
+    }
+
+    function invest(address _asset, uint256 _amount) external onlyWhitelisted nonReentrant returns (uint256) {
         required(_amount > 0, "invest must greater than 0");
 
-        address yToken = _contractOf(_bAsset);
+        address yToken = _contractOf(_asset);
 
         uint256 before = IERC20(yToken).balanceOf(address(this));
-        IERC20(_bAsset).safeApprove(yToken, _amount);
+        IERC20(_asset).safeApprove(yToken, _amount);
         yTokenV2(yToken).deposit(_amount);
 
         return IERC20(yToken).balanceOf(address(this)).sub(before);
     }
 
-    function collect(address _account, address _bAsset, uint256 _shares) external onlyWhitelisted returns (uint256) {
+    function collect(address _account, address _asset, uint256 _shares) external onlyWhitelisted returns (uint256) {
         required(_shares > 0, "shares must greater than 0");
 
-        yTokenV2 yToken = yTokenV2(_contractOf(_bAsset));
+        yTokenV2 yToken = yTokenV2(_contractOf(_asset));
         uint256 amount = _shares.mul(yToken.getPricePerFullShare());
         yToken.withdraw(_shares);
 
-        require(amount <= IERC20(_bAsset).balanceOf(address(this)), "insufficient balance");
-        IERC20(_bAsset).safeTransfer(_account, amount);
+        require(amount <= IERC20(_asset).balanceOf(address(this)), "insufficient balance");
+        IERC20(_asset).safeTransfer(_account, amount);
 
         return _amount;
     }
 
-    function balanceOf(address _bAsset) external view returns (uint256) {
-        address yToken = _contractOf(_bAsset);
+    function balanceOf(address _asset) external view returns (uint256) {
+        address yToken = _contractOf(_asset);
 
         uint256 shares = IERC20(yToken).balanceOf(address(this));
         return yTokenV2(yToken).getPricePerFullShare().mul(shares);
     }
 
     function totalBalance() external view returns (uint256) {
-        int length = _bAssets.length;
+        int length = _assets.length;
         uint256 balance = 0;
 
         for(int i = 0; i < length; ++i) {
-            balance.add(balanceOf(_bAssets[i]));
+            balance.add(balanceOf(_assets[i]));
         }
         return balance;
     }
 
-    function _contractOf(address _bAsset) internal view returns (address) {
-        address yToken = _contracts[_bAsset];
+    function _contractOf(address _asset) internal view returns (address) {
+        address yToken = _contracts[_asset];
         require(yToken != address(0), "can not find any available investment contract");
         return yToken;
     }

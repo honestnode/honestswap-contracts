@@ -6,6 +6,7 @@ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 
+import "../interfaces/IHonestBasket.sol";
 import "../interfaces/IHonestSavings.sol";
 import "./IInvestmentIntegration.sol";
 
@@ -19,6 +20,7 @@ contract HonestSavings is IHonestSavings, Ownable {
     event SavingsRedeemed(address indexed account, uint256 shares, uint256 amount);
 
     address private _hAsset;
+    address private _basket;
     address private _investmentIntegration;
 
     mapping(address => uint256) private _savings;
@@ -27,10 +29,13 @@ contract HonestSavings is IHonestSavings, Ownable {
     uint256 private _totalSavings;
     uint256 private _totalShares;
 
-    constructor(address _hAssetContract, address _investmentContract) public {
-        require(_hAssetContract != address(0), "honest asset must be valid");
+    constructor(address _hAssetContract, address _basketContract, address _investmentContract) public {
+        require(_hAssetContract != address(0), "hasset contract must be valid");
+        require(_basketContract != address(0), "basket contract must be valid");
         require(_investmentContract != address(0), "investment contract must be valid");
+
         _hAsset = _hAssetContract;
+        _basket = _basketContract;
         _investmentIntegration = _investmentContract;
     }
 
@@ -39,8 +44,26 @@ contract HonestSavings is IHonestSavings, Ownable {
         _hAsset = _hAssetContract;
     }
 
+    function setBasket(address _basketContract) external onlyOwner {
+        require(_basketContract != address(0), "address must be valid");
+        _basket = _hAssetContract;
+    }
+
+    function setInvestmentIntegration(address _investmentContract) external onlyOwner {
+        require(_investmentContract != address(0), "address must be valid");
+        _investmentIntegration = _investmentContract;
+    }
+
     function hAsset() external view returns (address) {
         return _hAsset;
+    }
+
+    function basket() external view returns (address) {
+        return _basket;
+    }
+
+    function investmentIntegration() external view returns (address) {
+        return _investmentIntegration;
     }
 
     function deposit(uint256 _amount) external returns (uint256) {
@@ -131,13 +154,16 @@ contract HonestSavings is IHonestSavings, Ownable {
     }
 
     function _invest(address _account, uint256 _amount) internal {
-        // TODO:
-        // 1. HAsset.redeemInProportion() ?
-        // or just keep the hAsset and get from basket
-        // the 2nd solution will minus totalBalanceOf hAsset
-        // 2. for(bAsset, amount in 1) {
-        //   IInvestmentIntegration(_investmentIntegration).invest(bAsset, amount);
-        // }
+
+        IERC20(_hAsset).safeApprove(_basket, _amount);
+        address[] memory assets = IInvestmentIntegration(_investmentIntegration).assets();
+        uint256[] memory amounts = IHonestBasket(_basket).swapBAssets(_investmentIntegration, _amount, assets);
+
+        int length = assets.length;
+        for (int i = 0; i < length; ++i) {
+            IInvestmentIntegration(_investmentIntegration).invest(assets[i], amount);
+            // TODO: save the shares
+        }
     }
 
     function _collect(address _account, uint256 _credits) internal {

@@ -218,4 +218,47 @@ InitializableReentrancyGuard {
         }
     }
 
+    /**
+     * total: 100
+     * bAssets: [32, 3000, 1, 0]
+     * expected: [0.01, 99.99, 0, 0]
+     */
+    function swapBAssets(address _integration, uint256 _totalAmounts, address[] calldata _expectAssets)
+    external
+    returns (address[] memory, uint256[] memory) {
+        require(_integration != address(0), "integration address must be valid");
+        require(_totalAmounts > 0, "amounts must greater than 0");
+        int length = _expectAssets.length;
+        require(length > 0, "assets length must greater than 0");
+
+        (address[] memory assets, uint256[] memory balances, uint256 totalBalance) = _getSortedBalances(_expectAssets);
+        require(_totalAmounts <= totalBalance, "insufficient balance");
+
+        uint256[] memory amounts = new uint256[](length);
+        uint256 distributed;
+        for (int i = 0; i < length - 1; ++i) {
+            amounts[i] = _totalAmounts.mul(balances[i]).div(totalBalance);
+            distributed = distributed.add(amounts[i]);
+            IERC20(assets[i]).safeTransfer(_integration, amounts[i]);
+        }
+        amounts[length - 1] = _totalAmounts - distributed;
+        IERC20(assets[length - 1]).safeTransfer(_integration, amounts[length - 1]);
+
+        return (assets, amounts);
+    }
+
+    function _getSortedBalances(address[] memory _bAssets)
+    internal view
+    returns (address[] memory, uint256[] memory, uint256) {
+        int length = _bAssets.length;
+        uint256[] memory shares = new uint256(length);
+        uint256 totalShares;
+        uint[] memory result = new uint[](length);
+        for (int i = 0; i < length; ++i) {
+            // TODO: sort the balance
+            shares[i] = bAssetsMap[_bAssets[i]];
+            totalShares = totalShares.add(shares[i]);
+        }
+        return (_bAssets, shares, totalShares);
+    }
 }
