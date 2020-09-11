@@ -388,7 +388,7 @@ InitializableReentrancyGuard {
         uint256[] memory bAssetQuantities = new uint256[](len);
         for (uint256 i = 0; i < len; i++) {
             uint256 quantity = _bAssetQuantity.mul(bAssetBalances[i]);
-            bAssetQuantities.push(quantity.div(sumBalance));
+            bAssetQuantities[i] = quantity.div(sumBalance);
         }
 
         return _handleRedeem(bAssets, bAssetQuantities, bAssetBalances, _recipient, true);
@@ -417,7 +417,7 @@ InitializableReentrancyGuard {
         require(redeemValid, reason);
 
         // query basket balance
-        (uint256 sumBalance, uint256[] memory bAssetBalances) = honestBasketInterface.getBasketBalance(_bAssets);
+        (uint256 sumBalance, uint256[] memory bAssetBalances) = honestBasketInterface.getBAssetsBalance(_bAssets);
         require(len == bAssetBalances.length, "Query bAsset balance failed");
 
         return _handleRedeem(_bAssets, _bAssetQuantities, bAssetBalances, _recipient, _inProportion);

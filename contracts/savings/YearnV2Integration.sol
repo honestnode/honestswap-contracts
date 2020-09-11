@@ -73,7 +73,7 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         return yToken;
     }
 
-    function _balanceOf() internal view returns (uint256) {
+    function _balanceOf(address _asset) internal view returns (uint256) {
         address yToken = _contractOf(_asset);
 
         uint256 shares = IERC20(yToken).balanceOf(address(this));

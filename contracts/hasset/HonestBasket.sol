@@ -120,7 +120,7 @@ InitializableReentrancyGuard {
     external view
     returns (address[] memory allBAssets, uint8[] memory statuses){
         allBAssets = bAssets;
-        statuses = uint8[bAssets.length];
+        statuses = uint8[](bAssets.length);
         for (uint256 i = 0; i < bAssets.length; i++) {
             statuses[i] = bAssetStatusMap[bAssets[i]];
         }
