@@ -13,7 +13,7 @@ interface yTokenV2 {
 
     function withdraw(uint256 _shares) external;
 
-    function getPricePerFullShare() public view returns (uint);
+    function getPricePerFullShare() external view returns (uint);
 }
 
 contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, ReentrancyGuard {
@@ -30,7 +30,7 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
     }
 
     function invest(address _asset, uint256 _amount) external onlyWhitelisted nonReentrant returns (uint256) {
-        required(_amount > 0, "invest must greater than 0");
+        require(_amount > 0, "invest must greater than 0");
 
         address yToken = _contractOf(_asset);
 
@@ -42,7 +42,7 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
     }
 
     function collect(address _account, address _asset, uint256 _shares) external onlyWhitelisted returns (uint256) {
-        required(_shares > 0, "shares must greater than 0");
+        require(_shares > 0, "shares must greater than 0");
 
         yTokenV2 yToken = yTokenV2(_contractOf(_asset));
         uint256 amount = _shares.mul(yToken.getPricePerFullShare());
@@ -51,7 +51,7 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         require(amount <= IERC20(_asset).balanceOf(address(this)), "insufficient balance");
         IERC20(_asset).safeTransfer(_account, amount);
 
-        return _amount;
+        return amount;
     }
 
     function balanceOf(address _asset) external view returns (uint256) {
@@ -59,10 +59,10 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
     }
 
     function totalBalance() external view returns (uint256) {
-        int length = _assets.length;
+        uint256 length = _assets.length;
         uint256 balance = 0;
 
-        for(int i = 0; i < length; ++i) {
+        for(uint256 i = 0; i < length; ++i) {
             balance.add(_balanceOf(_assets[i]));
         }
         return balance;
@@ -74,7 +74,7 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         return yToken;
     }
 
-    function _balanceOf() internal view returns (uint256) {
+    function _balanceOf(address _asset) internal view returns (uint256) {
         address yToken = _contractOf(_asset);
 
         uint256 shares = IERC20(yToken).balanceOf(address(this));
