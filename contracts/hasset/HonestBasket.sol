@@ -241,6 +241,14 @@ InitializableReentrancyGuard {
         return amounts;
     }
 
+    function distributeHAssets(address _account, address[] calldata _bAssets, uint256[] calldata _amounts, uint256 _interests)
+    external {
+        // TODO: implement
+        // 1. foreach basset.transferFrom(msg.sender, amount)
+        // 2. hAsset.transfer(_account, sum(_amounts))
+        // 3. mint _interests hAssets to _account
+    }
+
     function _getBalancePercentages(address[] memory _bAssets)
     internal view
     returns (uint256[] memory, uint256) {
