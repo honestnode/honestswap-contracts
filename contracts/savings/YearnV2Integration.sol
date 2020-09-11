@@ -17,7 +17,7 @@ interface yTokenV2 {
     function getPricePerFullShare() public view returns (uint);
 }
 
-contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, InitializableReentrancyGuard {
+contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, ReentrancyGuard {
 
     using SafeERC20 for IERC20;
     using Address for address;
@@ -59,13 +59,6 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Initiali
         return _balanceOf(_asset);
     }
 
-    function _balanceOf(address _asset) internal returns (uint256) {
-        address yToken = _contractOf(_asset);
-
-        uint256 shares = IERC20(yToken).balanceOf(address(this));
-        return yTokenV2(yToken).getPricePerFullShare().mul(shares);
-    }
-
     function totalBalance() external view returns (uint256) {
         uint256 balance = 0;
         for (uint256 i = 0; i < _assets.length; ++i) {
@@ -78,5 +71,12 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Initiali
         address yToken = _contracts[_asset];
         require(yToken != address(0), "can not find any available investment contract");
         return yToken;
+    }
+
+    function _balanceOf() internal view returns (uint256) {
+        address yToken = _contractOf(_asset);
+
+        uint256 shares = IERC20(yToken).balanceOf(address(this));
+        return yTokenV2(yToken).getPricePerFullShare().mul(shares);
     }
 }
