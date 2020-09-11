@@ -1,5 +1,4 @@
 pragma solidity ^0.5.0;
-pragma experimental ABIEncoderV2;
 
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {Initializable} from "@openzeppelin/upgrades/contracts/Initializable.sol";
@@ -9,7 +8,6 @@ import {InitializablePausableModule} from "../common/InitializablePausableModule
 import {InitializableReentrancyGuard} from "../common/InitializableReentrancyGuard.sol";
 import {IHonestBasket} from "../interfaces/IHonestBasket.sol";
 import {IHonestSavings} from "../interfaces/IHonestSavings.sol";
-import {IPlatformIntegration} from "../interfaces/IPlatformIntegration.sol";
 
 contract HonestBasket is
 Initializable,
@@ -66,7 +64,7 @@ InitializableReentrancyGuard {
         _;
     }
 
-    function getBalance(address _bAsset) external view returns (uint256 memory balance){
+    function getBalance(address _bAsset) external view returns (uint256 balance){
         require(_bAsset != address(0), "bAsset address must be valid");
         (bool exist, uint8 index) = _isAssetInBasket(_bAsset);
         require(exist, "bAsset not exist");

@@ -140,7 +140,7 @@ contract HonestSavings is IHonestSavings, Ownable {
         // }
     }
 
-    function _collect(address _account, uint256 _shares) internal {
+    function _collect(address _account, uint256 _credits) internal {
         // TODO:
         // 1. find current investment bAssets rate
         // 2. for(rate in 1) {

@@ -380,12 +380,12 @@ InitializableReentrancyGuard {
         address[] memory bAssets = bAssetValidator.filterValidBAsset(allBAssets, statuses);
 
         require(bAssets.length > 0, "No valid bAssets");
-        uint256 len = bAssets.length;
+        uint len = bAssets.length;
         (uint256 sumBalance, uint256[] memory bAssetBalances) = honestBasketInterface.getBAssetsBalance(bAssets);
         require(bAssets.length == bAssetBalances.length, "Query bAsset balance failed");
         // calc bAssets quantity in Proportion
 
-        uint256[] memory bAssetQuantities = new uint256[len];
+        uint256[] memory bAssetQuantities = new uint256[](len);
         for (uint256 i = 0; i < len; i++) {
             uint256 quantity = _bAssetQuantity.mul(bAssetBalances[i]);
             bAssetQuantities[i] = quantity.div(sumBalance);
@@ -440,7 +440,7 @@ InitializableReentrancyGuard {
         if (!_inProportion) {
             feeRate = honestFeeInterface.redeemFeeRate();
         }
-        uint256 len = _bAssetQuantities.length;
+        uint len = _bAssetQuantities.length;
         for (uint256 i = 0; i < len; i++) {
             // check every target bAsset quantity
             require(_bAssetQuantities[i] <= _bAssetBalances[i], "Cannot redeem more bAsset than balance");
@@ -452,7 +452,7 @@ InitializableReentrancyGuard {
         _burn(msg.sender, hAssetQuantity);
 
         uint256 totalFee = 0;
-        uint256[] memory gapQuantities = new uint256[len];
+        uint256[] memory gapQuantities = new uint256[](len);
         uint256 supplyBackToSaving = 0;
         for (uint256 i = 0; i < _bAssetQuantities.length; i++) {
             uint256 bAssetBalance = _bAssetBalances[i];
