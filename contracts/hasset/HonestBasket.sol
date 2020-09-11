@@ -3,12 +3,14 @@ pragma solidity ^0.5.0;
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {Initializable} from "@openzeppelin/upgrades/contracts/Initializable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20Detailed} from '@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol';
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import {InitializablePausableModule} from "../common/InitializablePausableModule.sol";
 import {InitializableReentrancyGuard} from "../common/InitializableReentrancyGuard.sol";
 import {IHonestBasket} from "../interfaces/IHonestBasket.sol";
 import {IHonestSavings} from "../interfaces/IHonestSavings.sol";
+import {StandardERC20} from "../util/StandardERC20.sol";
 
 contract HonestBasket is
 Initializable,
@@ -17,6 +19,8 @@ InitializablePausableModule,
 InitializableReentrancyGuard {
 
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
+    using StandardERC20 for ERC20Detailed;
 
     // Events for Basket composition changes
     event BassetAdded(address indexed bAsset, uint8 bAssetIndex);
@@ -222,45 +226,43 @@ InitializableReentrancyGuard {
      * total: 100
      * bAssets: [32, 3000, 1, 0]
      * expected: [0.01, 99.99, 0, 0]
+     * total: 6021
+     * bAssets: [1, 0, 3010, 3011]
+     * expected: [0, 0, 3010, 3011]
      */
-    function swapBAssets(address _integration, uint256 _totalAmounts, address[] calldata _expectAssets)
+    function swapBAssets(address _integration, uint256 _totalAmount, address[] calldata _expectAssets)
     external
-    returns (address[] memory, uint256[] memory) {
+    returns (uint256[] memory) {
         require(_integration != address(0), "integration address must be valid");
-        require(_totalAmounts > 0, "amounts must greater than 0");
+        require(_totalAmount > 0, "amount must greater than 0");
         uint256 length = _expectAssets.length;
         require(length > 0, "assets length must greater than 0");
 
-        (address[] memory assets, uint256[] memory balances, uint256 totalBalance) = _getSortedBalances(_expectAssets);
-        require(_totalAmounts <= totalBalance, "insufficient balance");
+        (uint256[] memory percentages, uint256 totalBalance) = _getBalancePercentages(_expectAssets);
+        require(_totalAmount <= totalBalance, "insufficient balance");
 
         uint256[] memory amounts = new uint256[](length);
-        uint256 distributed = 0;
-        for (uint256 i = 0; i < length - 1; ++i) {
-            amounts[i] = _totalAmounts.mul(balances[i]).div(totalBalance);
-            distributed = distributed.add(amounts[i]);
-//            IERC20(assets[i]).safeTransfer(_integration, amounts[i]);
-            SafeERC20.safeTransfer(IERC20(assets[i]), _integration, amounts[i]);
+        for (uint256 i = 0; i < length; ++i) {
+            amounts[i] = _totalAmount.mul(percentages[i]).div(uint256(1e18));
+            ERC20Detailed(_expectAssets[i]).standardTransfer(_integration, amounts[i]);
         }
-        amounts[length - 1] = _totalAmounts - distributed;
-        SafeERC20.safeTransfer(IERC20(assets[length - 1]), _integration, amounts[length - 1]);
-        //        IERC20(assets[length - 1]).safeTransfer(_integration, amounts[length - 1]);
-
-        return (assets, amounts);
+        return amounts;
     }
 
-    function _getSortedBalances(address[] memory _bAssets)
+    function _getBalancePercentages(address[] memory _bAssets)
     internal view
-    returns (address[] memory, uint256[] memory, uint256) {
+    returns (uint256[] memory, uint256) {
         uint256 length = _bAssets.length;
-        uint256[] memory shares = new uint256[](length);
-        uint256 totalShares = 0;
-//        uint[] memory result = new uint[](length);
+        uint256[] memory percentages = new uint256[](length);
+        uint256 totalBalances;
         for (uint256 i = 0; i < length; ++i) {
-            // TODO: sort the balance
-            shares[i] = bAssetsMap[_bAssets[i]];
-            totalShares = totalShares.add(shares[i]);
+            uint256 balance = ERC20Detailed(_bAssets[i]).standardBalanceOf(address(this));
+            percentages[i] = balance;
+            totalBalances = totalBalances.add(balance);
         }
-        return (_bAssets, shares, totalShares);
+        for (uint256 i = 0; i < length; ++i) {
+            percentages[i] = percentages[i].mul(uint256(1e18)).div(totalBalances);
+        }
+        return (percentages, totalBalances);
     }
 }

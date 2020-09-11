@@ -157,11 +157,11 @@ contract HonestSavings is IHonestSavings, Ownable {
 
         IERC20(_hAsset).safeApprove(_basket, _amount);
         address[] memory assets = IInvestmentIntegration(_investmentIntegration).assets();
-        (address[] memory sAssets, uint256[] memory amounts) = IHonestBasket(_basket).swapBAssets(_investmentIntegration, _amount, assets);
+        uint256[] memory amounts = IHonestBasket(_basket).swapBAssets(_investmentIntegration, _amount, assets);
 
-        uint256 length = sAssets.length;
+        uint256 length = assets.length;
         for (uint256 i = 0; i < length; ++i) {
-            IInvestmentIntegration(_investmentIntegration).invest(sAssets[i], amounts[i]);
+            IInvestmentIntegration(_investmentIntegration).invest(assets[i], amounts[i]);
             // TODO: save the shares
         }
     }
