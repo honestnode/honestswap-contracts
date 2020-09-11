@@ -7,14 +7,13 @@ import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import "./IInvestmentIntegration.sol";
-import "../common/InitializableReentrancyGuard.sol";
 
 interface yTokenV2 {
     function deposit(uint256 _amount) external;
 
     function withdraw(uint256 _shares) external;
 
-    function getPricePerFullShare() public view returns (uint);
+    function getPricePerFullShare() external view returns (uint);
 }
 
 contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, ReentrancyGuard {
@@ -60,8 +59,10 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
     }
 
     function totalBalance() external view returns (uint256) {
+        uint256 length = _assets.length;
         uint256 balance = 0;
-        for (uint256 i = 0; i < _assets.length; ++i) {
+
+        for(uint256 i = 0; i < length; ++i) {
             balance.add(_balanceOf(_assets[i]));
         }
         return balance;
