@@ -54,6 +54,11 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         return amount;
     }
 
+    function valueOf(address _bAsset) external view returns (uint256) {
+        address yToken = _contractOf(_bAsset);
+        return yTokenV2(yToken).getPricePerFullShare();
+    }
+
     function balanceOf(address _asset) external view returns (uint256) {
         return _balanceOf(_asset);
     }
@@ -62,7 +67,7 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         uint256 length = _assets.length;
         uint256[] memory aBalances = new uint256[](length);
         uint256 totalBalances;
-        for(uint256 i = 0; i < length; ++i) {
+        for (uint256 i = 0; i < length; ++i) {
             aBalances[i] = _balanceOf(_assets[i]);
             totalBalances = totalBalances.add(aBalances[i]);
         }
@@ -73,7 +78,7 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         uint256 length = _assets.length;
         uint256 balance = 0;
 
-        for(uint256 i = 0; i < length; ++i) {
+        for (uint256 i = 0; i < length; ++i) {
             balance.add(_balanceOf(_assets[i]));
         }
         return balance;

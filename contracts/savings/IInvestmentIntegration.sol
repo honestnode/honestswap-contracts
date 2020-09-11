@@ -8,6 +8,8 @@ interface IInvestmentIntegration {
 
     function collect(address _bAsset, uint256 _shares) external returns (uint256);
 
+    function valueOf(address _bAsset) external view returns (uint256);
+
     function balanceOf(address _bAsset) external view returns (uint256);
 
     function balances() external view returns (address[] memory, uint256[] memory, uint256);

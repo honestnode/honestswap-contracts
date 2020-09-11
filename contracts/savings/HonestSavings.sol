@@ -74,7 +74,7 @@ contract HonestSavings is IHonestSavings, Ownable {
         _savings[_msgSender()] = _savings[_msgSender()].add(_amount);
         _totalSavings = _totalSavings.add(_amount);
 
-        (uint256[] memory shares, uint256 totalShares) = _invest(_msgSender(), _amount);
+        (uint256[] memory shares, uint256 totalShares) = _invest(_amount);
 
         _shares[_msgSender()] = _shares[_msgSender()].add(totalShares);
         _totalShares = _totalShares.add(totalShares);
@@ -121,7 +121,8 @@ contract HonestSavings is IHonestSavings, Ownable {
     }
 
     function netValue() external view returns (uint256) {
-        return _netValue();
+        // TODO: implement
+        return 0;
     }
 
     function apy() external view returns (uint256) {
@@ -130,17 +131,23 @@ contract HonestSavings is IHonestSavings, Ownable {
     }
 
     function swap(address _account, address[] calldata _bAssets, uint256[] calldata _borrows, uint256[] calldata _supplies) external {
-        // TODO: implement
-    }
+        uint256 length = _bAssets.length;
+        require(length == _borrows.length, "mismatch amounts length");
+        require(length == _supplies.length, "mismatch amounts length");
 
-    function borrow(address _account, address[] calldata _bAssets, uint256[] calldata _amounts) external returns (uint256) {
-        // TODO: implement
-        return 0;
-    }
+        uint256 borrows;
+        uint256 supplies;
+        for(uint256 i = 0; i < length; ++i) {
+            borrows = borrows.add(_borrows[i]);
+            supplies = supplies.add(_supplies[i]);
+            IInvestmentIntegration(_investmentIntegration).invest(_bAssets[i], _supplies[i]);
 
-    function supply(uint256 _amounts) external returns (uint256) {
-        // TODO: implement
-        return 0;
+            uint256 shares = _borrows[i].mul(uint256(1e18)).div(IInvestmentIntegration(_investmentIntegration).valueOf(_bAssets[i]));
+            uint256 amount = IInvestmentIntegration(_investmentIntegration).collect(_bAssets[i], shares);
+            IERC20(_bAssets[i]).safeTransfer(_msgSender(), amount);
+        }
+        require(borrows > 0, "amounts must greater than 0");
+        require(borrows == supplies, "mismatch amounts");
     }
 
     function investments() external view returns (address[] memory, uint256[] memory) {
@@ -156,19 +163,7 @@ contract HonestSavings is IHonestSavings, Ownable {
         return amounts;
     }
 
-    function _netValue() internal view returns (uint256) {
-        return IInvestmentIntegration(_investmentIntegration).totalBalance().mul(1e18).div(_totalSavings);
-    }
-
-    function _savingsToShares(uint256 _amount) internal view returns (uint256) {
-        return _amount.mul(uint256(1e18)).div(_netValue());
-    }
-
-    function _sharesToSavings(uint256 _credits) internal view returns (uint256) {
-        return _credits.mul(_netValue()).div(uint256(1e18));
-    }
-
-    function _invest(address _account, uint256 _amount) internal returns (uint256[] memory, uint256) {
+    function _invest(uint256 _amount) internal returns (uint256[] memory, uint256) {
 
         IERC20(_hAsset).safeApprove(_basket, _amount);
         address[] memory assets = IInvestmentIntegration(_investmentIntegration).assets();
