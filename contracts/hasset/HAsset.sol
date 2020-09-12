@@ -475,7 +475,8 @@ InitializableReentrancyGuard {
         }
         if (totalFee > 0) {
             // handle fee
-            honestFeeInterface.chargeRedeemFee(msg.sender, totalFee);
+            // trans hAsset fee to fee contract
+            uint256 feeTransferred = HAssetHelpers.transferTokens(getBasketAddress(), address(honestFeeInterface), address(this), false, totalFee);
         }
         if (supplyBackToSaving > 0) {
             // barrow gap quantity from saving, saving will send bAsset to msg.sender
