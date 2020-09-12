@@ -3,6 +3,7 @@ pragma solidity ^0.5.0;
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {Initializable} from "@openzeppelin/upgrades/contracts/Initializable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20Mintable} from "@openzeppelin/contracts/token/ERC20/ERC20Mintable.sol";
 import {ERC20Detailed} from '@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol';
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
@@ -244,9 +245,25 @@ InitializableReentrancyGuard {
     function distributeHAssets(address _account, address[] calldata _bAssets, uint256[] calldata _amounts, uint256 _interests)
     external {
         // TODO: implement
-        // 1. foreach basset.transferFrom(msg.sender, amount)
-        // 2. hAsset.transfer(_account, sum(_amounts))
-        // 3. mint _interests hAssets to _account
+        require(_account != address(0), "Saver address address must be valid");
+        require(_bAssets.length > 0 && _bAssets.length == _amounts.length, "BAssets array mismatch ");
+
+        uint256 hUSDReturn = 0;
+        // trans bAsset back to basket from saving
+        for (uint256 i = 0; i < _bAssets.length; i++) {
+            if (_amounts[i] > 0) {
+                uint256 quantityBAssetBack = HAssetHelpers.transferTokens(msg.sender, address(this), _bAssets[i], false, _amounts[i]);
+                hUSDReturn = hUSDReturn.add(_amounts[i]);
+            }
+        }
+
+        if (_interests > 0) {// mint interests to basket
+            ERC20Mintable(hAsset).mint(address(this), _interests);
+        }
+
+        // trans hUSD(saving quantity + interests) back to saver
+        uint256 quantityHUSDBack = HAssetHelpers.transferTokens(address(this), msg.sender, hAsset, false, hUSDReturn);
+
     }
 
     function _getBalancePercentages(address[] memory _bAssets)

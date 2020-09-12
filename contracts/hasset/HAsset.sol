@@ -4,6 +4,7 @@ pragma solidity ^0.5.0;
 import {Initializable} from "@openzeppelin/upgrades/contracts/Initializable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20Mintable} from "@openzeppelin/contracts/token/ERC20/ERC20Mintable.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import {InitializableToken} from "../common/InitializableToken.sol";
@@ -76,6 +77,8 @@ InitializableReentrancyGuard {
         honestBonusInterface = IHonestBonus(_honestBonusInterface);
         honestFeeInterface = IHonestFee(_honestFeeInterface);
         bAssetValidator = IBAssetValidator(_bAssetValidator);
+
+        ERC20Mintable(address(this)).addMinter(_honestBasketInterface);
     }
 
     //    modifier onlySavingsManager() {
