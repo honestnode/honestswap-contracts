@@ -44,10 +44,12 @@ contract HonestFee is IHonestFee, WhitelistAdminRole {
         return _totalFee();
     }
 
-    function reward(address _account, uint256 _percentage) external view returns (uint256) {
-        require(_percentage < uint256(1e18), 'insufficient balance');
-        uint256 amount = _percentage.mul(_totalFee());
+    function reward(address _account, uint256 _percentage) external returns (uint256) {
+        require(_percentage <= uint256(1e18), 'insufficient balance');
+
+        uint256 amount = _percentage.mul(_totalFee()).div(uint256(1e18));
         IERC20(_hAsset).safeTransfer(_account, amount);
+
         return amount;
     }
 

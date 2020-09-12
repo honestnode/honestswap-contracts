@@ -101,7 +101,7 @@ contract HonestSavings is IHonestSavings, Ownable {
         _totalSavings = _totalSavings.sub(amount);
 
         _collect(_msgSender(), _credits, amount);
-        IHonestFee(_fee).reward(_msgSender(), _sharesPercentageOf);
+        IHonestFee(_fee).reward(_msgSender(), _sharesPercentageOf(_msgSender()));
 
         emit SavingsRedeemed(_msgSender(), _credits, amount);
         return amount;
@@ -157,7 +157,7 @@ contract HonestSavings is IHonestSavings, Ownable {
     }
 
     function investments() external view returns (address[] memory, uint256[] memory) {
-        (address[] memory _assets, uint256[] memory _balances, uint256 totalBalances) = IInvestmentIntegration(_investmentIntegration).balances();
+        (address[] memory _assets, uint256[] memory _balances, uint256 _) = IInvestmentIntegration(_investmentIntegration).balances();
         return (_assets, _balances);
     }
 
@@ -202,7 +202,7 @@ contract HonestSavings is IHonestSavings, Ownable {
         IHonestBasket(_basket).distributeHAssets(_account, bAssets, amounts, totalAmount.sub(_amount));
     }
 
-    function _sharesPercentageOf(address _account) internal view {
+    function _sharesPercentageOf(address _account) internal view returns (uint256) {
         if (_totalShares == 0) {
             return 0;
         }
