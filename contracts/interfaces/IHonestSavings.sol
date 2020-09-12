@@ -20,16 +20,7 @@ interface IHonestSavings {
 
     function swap(address _account, address[] calldata _bAssets, uint256[] calldata _borrows, uint256[] calldata _supplies) external;
 
-    // deprecated
-    function borrow(address _account, address _bAsset, uint256 _amounts) external returns (uint256);
-
-    // deprecated
-    function borrowMulti(address _account, address[] calldata _bAssets, uint256[] calldata _amounts) external returns (uint256);
-
-    // deprecated
-    function supply(uint256 _amounts) external returns (uint256);
-
-    function investments() external view returns(address[] memory, uint256[] memory);
+    function investments() external view returns(address[] memory, uint256[] memory _amounts);
 
     function investmentOf(address[] calldata _bAssets) external view returns(uint256[] memory);
 }
