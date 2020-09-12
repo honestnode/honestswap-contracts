@@ -34,7 +34,7 @@ InitializableReentrancyGuard {
     // Forging Events
     event Minted(address indexed minter, address recipient, uint256 hAssetQuantity, address bAsset, uint256 bAssetQuantity);
     event MintedMulti(address indexed minter, address recipient, uint256 hAssetQuantity, address[] bAssets, uint256[] bAssetQuantities);
-    event Swapped(address indexed swapper, address input, address output, uint256 outputAmount, address recipient);
+
     event Redeemed(address indexed redeemer, address recipient, uint256 hAssetQuantity, address[] bAssets, uint256[] bAssetQuantities);
     event RedeemedHAsset(address indexed redeemer, address recipient, uint256 hAssetQuantity);
     event PaidFee(address indexed payer, address asset, uint256 feeQuantity);
@@ -479,9 +479,12 @@ InitializableReentrancyGuard {
             uint256 feeTransferred = HAssetHelpers.transferTokens(getBasketAddress(), address(honestFeeInterface), address(this), false, totalFee);
         }
         if (supplyBackToSaving > 0) {
+            uint256[] memory supplies = new uint256[](_bAssets.length);
+            // TODO CALC supplies
+            honestSavingsInterface.swap(msg.sender, _bAssets, gapQuantities, supplies);
             // barrow gap quantity from saving, saving will send bAsset to msg.sender
-            uint256 barrowQuantity = honestSavingsInterface.borrowMulti(msg.sender, _bAssets, gapQuantities);
-            uint256 supplyBackToSavingQuantity = honestSavingsInterface.supply(supplyBackToSaving);
+//            uint256 barrowQuantity = honestSavingsInterface.borrowMulti(msg.sender, _bAssets, gapQuantities);
+//            uint256 supplyBackToSavingQuantity = honestSavingsInterface.supply(supplyBackToSaving);
         }
 
         emit Redeemed(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);

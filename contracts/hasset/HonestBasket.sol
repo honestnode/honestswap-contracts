@@ -15,6 +15,7 @@ import {IHonestFee} from "../interfaces/IHonestFee.sol";
 import {StandardERC20} from "../util/StandardERC20.sol";
 import {HAssetHelpers} from "../util/HAssetHelpers.sol";
 import {IBAssetValidator} from "../validator/IBAssetValidator.sol";
+import {HonestMath} from "../util/HonestMath.sol";
 
 contract HonestBasket is
 Initializable,
@@ -24,7 +25,11 @@ InitializableReentrancyGuard {
 
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
+    using HonestMath for uint256;
     using StandardERC20 for ERC20Detailed;
+
+    event Swapped(address indexed swapper, address input, address output, uint256 outputAmount, address recipient);
+    event PaidFee(address indexed payer, address asset, uint256 feeQuantity);
 
     // Events for Basket composition changes
     event BassetAdded(address indexed bAsset, uint8 bAssetIndex);
@@ -32,16 +37,16 @@ InitializableReentrancyGuard {
 
     address public hAsset;
 
-    address[] private bAssets;
+    address[] public bAssets;
     uint8 private maxBassets;
     // Mapping holds bAsset token address => array index
     mapping(address => uint8) private bAssetsMap;
     mapping(address => uint8) private bAssetStatusMap;
 
     IHonestSavings private honestSavingsInterface;
-    //    IHonestFee private honestFeeInterface;
+    IHonestFee private honestFeeInterface;
     IBAssetValidator private bAssetValidator;
-    address public honestFee;
+    //    address public honestFee;
 
     function initialize(
         address _nexus,
@@ -62,8 +67,8 @@ InitializableReentrancyGuard {
         hAsset = _hAsset;
 
         honestSavingsInterface = IHonestSavings(_honestSavingsInterface);
+        honestFeeInterface = IHonestFee(_honestFeeInterface);
         bAssetValidator = IBAssetValidator(_bAssetValidator);
-        honestFee = _honestFeeInterface;
 
         // Defaults
         maxBassets = uint8(20);
@@ -162,7 +167,7 @@ InitializableReentrancyGuard {
         return _getBAssetsStatus(_bAssets);
     }
 
-    function _getBAssetsStatus(address[] calldata _bAssets) internal returns (bool, uint8[] memory){
+    function _getBAssetsStatus(address[] memory _bAssets) internal returns (bool, uint8[] memory){
         require(_bAssets.length > 0, "bAsset address must be valid");
         bool allExist = true;
         uint8[] memory statuses = new uint8[](_bAssets.length);
@@ -238,7 +243,7 @@ InitializableReentrancyGuard {
         }
 
         // handle swap fee, mint hAsset ,save to fee contract
-        ERC20Mintable(hAsset).mint(honestFee, swapFee);
+        ERC20Mintable(hAsset).mint(address(honestFeeInterface), swapFee);
 
         if (gapQuantity > 0) {
             uint256[] memory borrows = new uint256[](bAssets.length);
