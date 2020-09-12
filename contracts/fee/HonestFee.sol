@@ -51,7 +51,7 @@ contract HonestFee is IHonestFee, WhitelistAdminRole {
         return amount;
     }
 
-    function _totalFee() external view returns (uint256) {
+    function _totalFee() internal view returns (uint256) {
         return IERC20(_hAsset).balanceOf(address(this));
     }
 }

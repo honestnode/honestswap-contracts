@@ -145,7 +145,7 @@ contract HonestSavings is IHonestSavings, Ownable {
         for(uint256 i = 0; i < length; ++i) {
             borrows = borrows.add(_borrows[i]);
             supplies = supplies.add(_supplies[i]);
-            IERC20(_bAssets[i]).safeTransferFrom(_msgSender(), address(this), amount);
+            IERC20(_bAssets[i]).safeTransferFrom(_msgSender(), address(this), _supplies[i]);
             IInvestmentIntegration(_investmentIntegration).invest(_bAssets[i], _supplies[i]);
 
             uint256 shares = _borrows[i].mul(uint256(1e18)).div(IInvestmentIntegration(_investmentIntegration).valueOf(_bAssets[i]));
@@ -202,7 +202,7 @@ contract HonestSavings is IHonestSavings, Ownable {
         IHonestBasket(_basket).distributeHAssets(_account, bAssets, amounts, totalAmount.sub(_amount));
     }
 
-    function _sharesPercentageOf(address _account) {
+    function _sharesPercentageOf(address _account) internal view {
         if (_totalShares == 0) {
             return 0;
         }
