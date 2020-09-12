@@ -11,7 +11,10 @@ import {InitializablePausableModule} from "../common/InitializablePausableModule
 import {InitializableReentrancyGuard} from "../common/InitializableReentrancyGuard.sol";
 import {IHonestBasket} from "../interfaces/IHonestBasket.sol";
 import {IHonestSavings} from "../interfaces/IHonestSavings.sol";
+import {IHonestFee} from "../interfaces/IHonestFee.sol";
 import {StandardERC20} from "../util/StandardERC20.sol";
+import {HAssetHelpers} from "../util/HAssetHelpers.sol";
+import {IBAssetValidator} from "../validator/IBAssetValidator.sol";
 
 contract HonestBasket is
 Initializable,
@@ -36,12 +39,17 @@ InitializableReentrancyGuard {
     mapping(address => uint8) private bAssetStatusMap;
 
     IHonestSavings private honestSavingsInterface;
+    //    IHonestFee private honestFeeInterface;
+    IBAssetValidator private bAssetValidator;
+    address public honestFee;
 
     function initialize(
         address _nexus,
         address _hAsset,
         address[] calldata _bAssets,
-        address _honestSavingsInterface
+        address _honestSavingsInterface,
+        address _honestFeeInterface,
+        address _bAssetValidator
     )
     external
     initializer
@@ -54,6 +62,8 @@ InitializableReentrancyGuard {
         hAsset = _hAsset;
 
         honestSavingsInterface = IHonestSavings(_honestSavingsInterface);
+        bAssetValidator = IBAssetValidator(_bAssetValidator);
+        honestFee = _honestFeeInterface;
 
         // Defaults
         maxBassets = uint8(20);
@@ -71,6 +81,10 @@ InitializableReentrancyGuard {
     }
 
     function getBalance(address _bAsset) external view returns (uint256 balance){
+        return _getBalance(_bAsset);
+    }
+
+    function _getBalance(address _bAsset) internal view returns (uint256 balance){
         require(_bAsset != address(0), "bAsset address must be valid");
         (bool exist, uint8 index) = _isAssetInBasket(_bAsset);
         require(exist, "bAsset not exist");
@@ -145,6 +159,10 @@ InitializableReentrancyGuard {
 
     /** @dev query bAssets info */
     function getBAssetsStatus(address[] calldata _bAssets) external returns (bool, uint8[] memory){
+        return _getBAssetsStatus(_bAssets);
+    }
+
+    function _getBAssetsStatus(address[] calldata _bAssets) internal returns (bool, uint8[] memory){
         require(_bAssets.length > 0, "bAsset address must be valid");
         bool allExist = true;
         uint8[] memory statuses = new uint8[](_bAssets.length);
@@ -158,6 +176,140 @@ InitializableReentrancyGuard {
             }
         }
         return (allExist, statuses);
+    }
+
+    /***************************************
+                SWAP (PUBLIC)
+    ****************************************/
+
+    /**
+     * @dev Simply swaps one bAsset for another bAsset or this mAsset at a 1:1 ratio.
+     * bAsset <> bAsset swaps will incur a small fee (swapFee()). Swap
+     * is valid if it does not result in the input asset exceeding its maximum weight.
+     * @param _input        bAsset to deposit
+     * @param _output       Asset to receive - either a bAsset or mAsset(this)
+     * @param _quantity     Units of input bAsset to swap
+     * @param _recipient    Address to credit output asset
+     * @return output       Units of output asset returned
+     */
+    function swap(address _input, address _output, uint256 _quantity, address _recipient)
+    external
+    nonReentrant
+    returns (uint256 outputQuantity)
+    {
+        require(_input != address(0) && _output != address(0), "Invalid swap asset addresses");
+        require(_input != _output, "Cannot swap the same asset");
+        require(_recipient != address(0), "Missing recipient address");
+        require(_output != hAsset, "Cannot swap hAsset");
+        require(_quantity > 0, "Invalid quantity");
+
+        // valid target bAssets
+        address[] memory swapBAssets = new address[](2);
+        swapBAssets[0] = _input;
+        swapBAssets[1] = _output;
+        (bool bAssetExist, uint8[] memory statuses) = _getBAssetsStatus(swapBAssets);
+        require(bAssetExist, "BAsset not exist in the Basket!");
+
+        (bool swapValid, string memory reason) = bAssetValidator.validateSwap(_input, statuses[0], _output, statuses[1], _quantity);
+        require(swapValid, reason);
+
+        // transfer bAsset to basket
+        uint256 quantitySwapIn = HAssetHelpers.transferTokens(msg.sender, address(this), _input, false, _quantity);
+
+        // check output bAsset balance
+        uint256 outputBAssetBalance = _getBalance(_output);
+        require(_quantity <= outputBAssetBalance, "Not enough swap out bAsset");
+
+        uint256 swapFeeRate = honestFeeInterface.swapFeeRate();
+
+        // Deduct the swap fee, if any
+        (uint256 swapFee, uint256 outputMinusFee) = _deductSwapFee(_output, _quantity, swapFeeRate);
+
+        outputQuantity = outputMinusFee;
+
+        uint256 bAssetPoolBalance = IERC20(_output).balanceOf(address(this));
+        uint256 quantitySwapOut = HAssetHelpers.transferTokens(address(this), _recipient, _output, false, outputMinusFee);
+        uint256 gapQuantity = 0;
+        if (outputMinusFee <= bAssetPoolBalance) {
+            // pool balance enough
+        } else {
+            // pool balance not enough
+            gapQuantity = outputMinusFee.sub(bAssetPoolBalance);
+        }
+
+        // handle swap fee, mint hAsset ,save to fee contract
+        ERC20Mintable(hAsset).mint(honestFee, swapFee);
+
+        if (gapQuantity > 0) {
+            uint256[] memory borrows = new uint256[](bAssets.length);
+            borrows[0] = gapQuantity;
+            // calc bAsset supplies to saving
+            uint256[] memory supplies = new uint256[](bAssets.length);
+            for (uint256 i = 0; i < bAssets.length; i++) {
+                // TODO calc supplies
+            }
+            // barrow gap quantity from saving, saving will send bAsset to msg.sender
+            honestSavingsInterface.swap(msg.sender, bAssets, borrows, supplies);
+            //            uint256 barrowQuantity = honestSavingsInterface.borrow(msg.sender, _output, gapQuantity);
+            //            uint256 supplyBackToSavingQuantity = honestSavingsInterface.supply(barrowQuantity);
+        }
+        emit Swapped(msg.sender, _input, _output, outputQuantity, _recipient);
+    }
+
+
+    /**
+     * @dev Determines both if a trade is valid, and the expected fee or output.
+     * Swap is valid if it does not result in the input asset exceeding its maximum weight.
+     * @param _input        bAsset to deposit
+     * @param _output       Asset to receive - bAsset or hAsset(this)
+     * @param _quantity     Units of input bAsset to swap
+     * @return valid        Bool to signify that swap is current valid
+     * @return reason       If swap is invalid, this is the reason
+     * @return outputQuantity       Units of _output asset the trade would return
+     */
+    function getSwapOutput(
+        address _input,
+        address _output,
+        uint256 _quantity
+    )
+    external
+    returns (bool, string memory, uint256 outputQuantity)
+    {
+        require(_input != address(0) && _output != address(0), "Invalid swap asset addresses");
+        require(_input != _output, "Cannot swap the same asset");
+        require(_output != hAsset, "Cannot swap hAsset");
+
+        //        bool isMint = (_output == address(this));
+        uint256 quantity = _quantity;
+
+        // valid target bAssets
+        address[] memory bAssets = new address[](2);
+        bAssets[0] = _input;
+        bAssets[1] = _output;
+        (bool bAssetExist, uint8[] memory statuses) = _getBAssetsStatus(bAssets);
+        require(bAssetExist, "BAsset not exist in the Basket!");
+
+        // 2. check if trade is valid
+        //        if (isMint) {
+        //            // Validate mint
+        //            (bool isValid, string memory reason) = bAssetValidator.validateMint(_input, statuses[0], _quantity);
+        //            if (!isValid) return (false, reason, 0);
+        //            return (true, "", _quantity);
+        //        }
+        // 2.2. If a bAsset swap, calculate the validity, output and fee
+        (bool swapValid, string memory reason) = bAssetValidator.validateSwap(_input, statuses[0], _output, statuses[1], _quantity);
+        if (!swapValid) {
+            return (false, reason, 0);
+
+            uint256 swapFeeRate = honestFeeInterface.swapFeeRate();
+            if (swapFeeRate > 0) {
+                uint256 swapFee = _quantity.mulTruncate(swapFeeRate);
+                outputQuantity = _quantity.sub(swapFee);
+            } else {
+                outputQuantity = _quantity;
+            }
+            return (true, "", outputQuantity);
+        }
     }
 
     /** @dev Setters for Gov to update Basket composition */
@@ -244,7 +396,6 @@ InitializableReentrancyGuard {
 
     function distributeHAssets(address _account, address[] calldata _bAssets, uint256[] calldata _amounts, uint256 _interests)
     external {
-        // TODO: implement
         require(_account != address(0), "Saver address address must be valid");
         require(_bAssets.length > 0 && _bAssets.length == _amounts.length, "BAssets array mismatch ");
 
@@ -281,5 +432,21 @@ InitializableReentrancyGuard {
             percentages[i] = percentages[i].mul(uint256(1e18)).div(totalBalances);
         }
         return (percentages, totalBalances);
+    }
+
+    /**
+     * @dev Pay the swap fee
+     */
+    function _deductSwapFee(address _asset, uint256 _bAssetQuantity, uint256 _feeRate)
+    private
+    returns (uint256 fee, uint256 outputMinusFee)
+    {
+        outputMinusFee = _bAssetQuantity;
+        if (_feeRate > 0) {
+            fee = _bAssetQuantity.mulTruncate(_feeRate);
+            outputMinusFee = _bAssetQuantity.sub(fee);
+
+            emit PaidFee(msg.sender, _asset, fee);
+        }
     }
 }
