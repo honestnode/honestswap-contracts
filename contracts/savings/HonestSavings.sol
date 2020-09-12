@@ -7,6 +7,7 @@ import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 
 import "../interfaces/IHonestBasket.sol";
+import {IHonestFee} from '../interfaces/IHonestFee.sol';
 import "../interfaces/IHonestSavings.sol";
 import "./IInvestmentIntegration.sol";
 
@@ -22,6 +23,7 @@ contract HonestSavings is IHonestSavings, Ownable {
     address private _hAsset;
     address private _basket;
     address private _investmentIntegration;
+    address private _fee;
 
     mapping(address => uint256) private _savings;
     mapping(address => uint256) private _shares;
@@ -29,14 +31,16 @@ contract HonestSavings is IHonestSavings, Ownable {
     uint256 private _totalSavings;
     uint256 private _totalShares;
 
-    constructor(address _hAssetContract, address _basketContract, address _investmentContract) public {
+    constructor(address _hAssetContract, address _basketContract, address _investmentContract, address _feeContract) public {
         require(_hAssetContract != address(0), "hasset contract must be valid");
         require(_basketContract != address(0), "basket contract must be valid");
         require(_investmentContract != address(0), "investment contract must be valid");
+        require(_fee != address(0), "fee contract must be valid");
 
         _hAsset = _hAssetContract;
         _basket = _basketContract;
         _investmentIntegration = _investmentContract;
+        _fee = _feeContract;
     }
 
     function setHAsset(address _hAssetContract) external onlyOwner {
@@ -97,6 +101,7 @@ contract HonestSavings is IHonestSavings, Ownable {
         _totalSavings = _totalSavings.sub(amount);
 
         _collect(_msgSender(), _credits, amount);
+        IHonestFee(_fee).reward(_msgSender(), _sharesPercentageOf);
 
         emit SavingsRedeemed(_msgSender(), _credits, amount);
         return amount;
@@ -140,6 +145,7 @@ contract HonestSavings is IHonestSavings, Ownable {
         for(uint256 i = 0; i < length; ++i) {
             borrows = borrows.add(_borrows[i]);
             supplies = supplies.add(_supplies[i]);
+            IERC20(_bAssets[i]).safeTransferFrom(_msgSender(), address(this), amount);
             IInvestmentIntegration(_investmentIntegration).invest(_bAssets[i], _supplies[i]);
 
             uint256 shares = _borrows[i].mul(uint256(1e18)).div(IInvestmentIntegration(_investmentIntegration).valueOf(_bAssets[i]));
@@ -194,5 +200,12 @@ contract HonestSavings is IHonestSavings, Ownable {
         }
 
         IHonestBasket(_basket).distributeHAssets(_account, bAssets, amounts, totalAmount.sub(_amount));
+    }
+
+    function _sharesPercentageOf(address _account) {
+        if (_totalShares == 0) {
+            return 0;
+        }
+        return _shares[_account].mul(uint256(1e18)).div(_totalShares);
     }
 }
