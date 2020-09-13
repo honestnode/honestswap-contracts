@@ -455,8 +455,10 @@ InitializableReentrancyGuard {
         _burn(msg.sender, hAssetQuantity);
 
         uint256 totalFee = 0;
-        uint256[] memory gapQuantities = new uint256[](len);
         uint256 supplyBackToSaving = 0;
+        uint256[] memory gapQuantities = new uint256[](len);
+        address[] memory borrowBAssets = new address[](len);
+        uint256 borrowBAssetsIndex = 0;
         for (uint256 i = 0; i < _bAssetQuantities.length; i++) {
             uint256 bAssetBalance = _bAssetBalances[i];
             // Deduct the redemption fee, if any
@@ -469,8 +471,10 @@ InitializableReentrancyGuard {
                 gapQuantities[i] = 0;
             } else {
                 // pool balance not enough
-                gapQuantities[i] = outputMinusFee.sub(bAssetPoolBalance);
-                supplyBackToSaving.add(gapQuantities[i]);
+                gapQuantities[borrowBAssetsIndex] = outputMinusFee.sub(bAssetPoolBalance);
+                supplyBackToSaving.add(gapQuantities[borrowBAssetsIndex]);
+                borrowBAssets[borrowBAssetsIndex] = _bAssets[i];
+                borrowBAssetsIndex = borrowBAssetsIndex.add(1);
             }
         }
         if (totalFee > 0) {
@@ -479,12 +483,22 @@ InitializableReentrancyGuard {
             uint256 feeTransferred = HAssetHelpers.transferTokens(getBasketAddress(), address(honestFeeInterface), address(this), false, totalFee);
         }
         if (supplyBackToSaving > 0) {
-            uint256[] memory supplies = new uint256[](_bAssets.length);
-            // TODO CALC supplies
-            honestSavingsInterface.swap(msg.sender, _bAssets, gapQuantities, supplies);
+            (address[] memory allBAssets, uint8[] memory statuses) = honestBasketInterface.getBasket();
+            address[] memory allValidBAssets = bAssetValidator.filterValidBAsset(allBAssets, statuses);
+            uint256[] memory supplies = new uint256[](allValidBAssets.length);
+            uint256[] memory poolBalances = new uint256[](allValidBAssets.length);
+            uint256 totalBAssetsPoolBalance = 0;
+            for (uint256 i = 0; i < allValidBAssets.length; i++) {
+                poolBalances[i] = IERC20(allValidBAssets[i]).balanceOf(address(honestBasketInterface));
+                totalBAssetsPoolBalance.add(poolBalances[i]);
+            }
+            for (uint256 i = 0; i < allValidBAssets.length; i++) {
+                supplies[i] = poolBalances[i].mul(supplyBackToSaving).div(totalBAssetsPoolBalance);
+            }
+            honestSavingsInterface.swap(msg.sender, borrowBAssets, gapQuantities, allValidBAssets, supplies);
             // barrow gap quantity from saving, saving will send bAsset to msg.sender
-//            uint256 barrowQuantity = honestSavingsInterface.borrowMulti(msg.sender, _bAssets, gapQuantities);
-//            uint256 supplyBackToSavingQuantity = honestSavingsInterface.supply(supplyBackToSaving);
+            //            uint256 barrowQuantity = honestSavingsInterface.borrowMulti(msg.sender, _bAssets, gapQuantities);
+            //            uint256 supplyBackToSavingQuantity = honestSavingsInterface.supply(supplyBackToSaving);
         }
 
         emit Redeemed(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);

@@ -144,6 +144,12 @@ InitializableReentrancyGuard {
     function getBasket()
     external view
     returns (address[] memory allBAssets, uint8[] memory statuses){
+        return _getBasket();
+    }
+
+    function _getBasket()
+    internal view
+    returns (address[] memory allBAssets, uint8[] memory statuses){
         allBAssets = bAssets;
         statuses = new uint8[](bAssets.length);
         for (uint256 i = 0; i < bAssets.length; i++) {
@@ -246,15 +252,25 @@ InitializableReentrancyGuard {
         ERC20Mintable(hAsset).mint(address(honestFeeInterface), swapFee);
 
         if (gapQuantity > 0) {
-            uint256[] memory borrows = new uint256[](bAssets.length);
+            address[] memory borrowBAssets = new address[](1);
+            borrowBAssets[0] = _output;
+            uint256[] memory borrows = new uint256[](1);
             borrows[0] = gapQuantity;
             // calc bAsset supplies to saving
-            uint256[] memory supplies = new uint256[](bAssets.length);
-            for (uint256 i = 0; i < bAssets.length; i++) {
-                // TODO calc supplies
+            (address[] memory allBAssets, uint8[] memory statuses) = _getBasket();
+            address[] memory allValidBAssets = bAssetValidator.filterValidBAsset(allBAssets, statuses);
+            uint256[] memory supplies = new uint256[](allValidBAssets.length);
+            uint256[] memory poolBalances = new uint256[](allValidBAssets.length);
+            uint256 totalBAssetsPoolBalance = 0;
+            for (uint256 i = 0; i < allValidBAssets.length; i++) {
+                poolBalances[i] = IERC20(allValidBAssets[i]).balanceOf(address(this));
+                totalBAssetsPoolBalance.add(poolBalances[i]);
+            }
+            for (uint256 i = 0; i < allValidBAssets.length; i++) {
+                supplies[i] = poolBalances[i].mul(gapQuantity).div(totalBAssetsPoolBalance);
             }
             // barrow gap quantity from saving, saving will send bAsset to msg.sender
-            honestSavingsInterface.swap(msg.sender, bAssets, borrows, supplies);
+            honestSavingsInterface.swap(msg.sender, borrowBAssets, borrows, allValidBAssets, supplies);
             //            uint256 barrowQuantity = honestSavingsInterface.borrow(msg.sender, _output, gapQuantity);
             //            uint256 supplyBackToSavingQuantity = honestSavingsInterface.supply(barrowQuantity);
         }
