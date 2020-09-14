@@ -56,9 +56,9 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
     function invest(address _asset, uint256 _amount) external onlyWhitelisted nonReentrant returns (uint256) {
         require(_amount > 0, "invest must greater than 0");
 
-        address yToken = _contractOf(_asset);
         IERC20(_asset).safeTransferFrom(_msgSender(), address(this), _amount);
 
+        address yToken = _contractOf(_asset);
         uint256 before = IERC20(yToken).balanceOf(address(this));
         IERC20(_asset).safeApprove(yToken, _amount);
         yTokenV2(yToken).deposit(_amount);
