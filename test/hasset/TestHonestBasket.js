@@ -3,6 +3,7 @@ const {expectRevert} = require('@openzeppelin/test-helpers');
 const MockHAsset = artifacts.require('MockHAsset');
 const HonestBasket = artifacts.require('HonestBasket');
 const MockHonestSaving = artifacts.require('MockHonestSaving');
+const MockHonestFee = artifacts.require('MockHonestFee');
 
 contract('HonestBasket', async (accounts) => {
 
@@ -11,6 +12,8 @@ contract('HonestBasket', async (accounts) => {
     const hundred = new BN(100).mul(fullScale);
     const twoHundred = new BN(200).mul(fullScale);
 
+    const feeRate = new BN(10).pow(new BN(15));
+
     const owner = accounts[0];
     const investor1 = accounts[1];
     const investor2 = accounts[2];
@@ -18,15 +21,25 @@ contract('HonestBasket', async (accounts) => {
     let hAsset;
     let basket;
     let savings;
+    let fee;
 
     const createContract = async () => {
         hAsset = await MockHAsset.new();
         savings = await MockHonestSaving.new();
+        fee = await MockHonestFee.new();
         basket = await HonestBasket.new();
     };
 
     before(async () => {
         await createContract();
+        await fee.setSwapFeeRate(feeRate);
+        await fee.setRedeemFeeRate(feeRate);
+        const swapFeeRate = await fee.swapFeeRate();
+        console.log("swapFeeRate=" + swapFeeRate);
+        const redeemFeeRate = await fee.redeemFeeRate();
+        console.log("redeemFeeRate=" + redeemFeeRate);
+
+
     });
 
     describe('constructor', async () => {

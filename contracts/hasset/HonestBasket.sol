@@ -339,7 +339,8 @@ InitializableReentrancyGuard {
     /** @dev Setters for Gov to update Basket composition */
     function addBAsset(address _bAsset, uint8 _status)
     external
-    onlyGovernor
+    nonReentrant
+//    onlyGovernor
     returns (uint8 index){
         index = _addBasset(_bAsset, _status);
     }
