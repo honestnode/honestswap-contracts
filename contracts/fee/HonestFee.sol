@@ -18,7 +18,7 @@ contract HonestFee is IHonestFee, WhitelistAdminRole {
     uint256 private _redeemFeeRate;
 
     constructor(address _hAssetContract) public {
-        require(_hAsset != address(0), 'address must be valid');
+        require(_hAssetContract != address(0), 'address must be valid');
         _hAsset = _hAssetContract;
         _swapFeeRate = uint256(1e16);
         _redeemFeeRate = uint256(1e16);
