@@ -4,6 +4,10 @@ interface IInvestmentIntegration {
 
     function assets() external view returns (address[] memory);
 
+    function addAsset(address _address, address _yAddress) external;
+
+    function removeAsset(address _address) external;
+
     function invest(address _asset, uint256 _amount) external returns (uint256);
 
     function collect(address _bAsset, uint256 _shares) external returns (uint256);

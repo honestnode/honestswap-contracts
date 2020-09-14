@@ -7,5 +7,5 @@ import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 
 contract MockTUSD is ERC20Mintable, ERC20Detailed {
 
-    constructor() public ERC20Detailed('Mock USDC', 'USDC', 6) {}
+    constructor() public ERC20Detailed('Mock TUSD', 'TUSD', 18) {}
 }

@@ -214,6 +214,7 @@ contract HonestSavings is IHonestSavings, Ownable {
         uint256[] memory shares = new uint256[](length);
         uint256 total;
         for (uint256 i = 0; i < length; ++i) {
+            IERC20(assets[i]).safeApprove(_investmentIntegration, amounts[i]);
             shares[i] = IInvestmentIntegration(_investmentIntegration).invest(assets[i], amounts[i]);
             total = total.add(shares[i]);
         }
