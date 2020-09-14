@@ -6,10 +6,11 @@ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 
-import "../interfaces/IHonestBasket.sol";
+import {IHonestBasket} from "../interfaces/IHonestBasket.sol";
+import {IHonestBonus} from "../interfaces/IHonestBonus.sol";
 import {IHonestFee} from '../interfaces/IHonestFee.sol';
-import "../interfaces/IHonestSavings.sol";
-import "./IInvestmentIntegration.sol";
+import {IHonestSavings} from "../interfaces/IHonestSavings.sol";
+import {IInvestmentIntegration} from "./IInvestmentIntegration.sol";
 
 contract HonestSavings is IHonestSavings, Ownable {
 
@@ -24,6 +25,7 @@ contract HonestSavings is IHonestSavings, Ownable {
     address private _basket;
     address private _investmentIntegration;
     address private _fee;
+    address private _bonus;
 
     mapping(address => uint256) private _savings;
     mapping(address => uint256) private _shares;
@@ -31,43 +33,64 @@ contract HonestSavings is IHonestSavings, Ownable {
     uint256 private _totalSavings;
     uint256 private _totalShares;
 
-    constructor(address _hAssetContract, address _basketContract, address _investmentContract, address _feeContract) public {
+    constructor(address _hAssetContract, address _basketContract,
+        address _investmentContract, address _feeContract, address _bonusContract) public {
         require(_hAssetContract != address(0), "hasset contract must be valid");
         require(_basketContract != address(0), "basket contract must be valid");
         require(_investmentContract != address(0), "investment contract must be valid");
         require(_fee != address(0), "fee contract must be valid");
+        require(_bonus != address(0), "bonus contract must be valid");
 
         _hAsset = _hAssetContract;
         _basket = _basketContract;
         _investmentIntegration = _investmentContract;
         _fee = _feeContract;
+        _bonus = _bonusContract;
     }
 
-    function setHAsset(address _hAssetContract) external onlyOwner {
+    function setHAssetContract(address _hAssetContract) external onlyOwner {
         require(_hAssetContract != address(0), "address must be valid");
         _hAsset = _hAssetContract;
     }
 
-    function setBasket(address _basketContract) external onlyOwner {
+    function setBasketContract(address _basketContract) external onlyOwner {
         require(_basketContract != address(0), "address must be valid");
         _basket = _basketContract;
     }
 
-    function setInvestmentIntegration(address _investmentContract) external onlyOwner {
+    function setInvestmentIntegrationContract(address _investmentContract) external onlyOwner {
         require(_investmentContract != address(0), "address must be valid");
         _investmentIntegration = _investmentContract;
     }
 
-    function hAsset() external view returns (address) {
+    function setFeeContract(address _feeContract) external onlyOwner {
+        require(_feeContract != address(0), "address must be valid");
+        _fee = _feeContract;
+    }
+
+    function setBonusContract(address _bonusContract) external onlyOwner {
+        require(_bonusContract != address(0), "address must be valid");
+        _bonus = _bonusContract;
+    }
+
+    function hAssetContract() external view returns (address) {
         return _hAsset;
     }
 
-    function basket() external view returns (address) {
+    function basketContract() external view returns (address) {
         return _basket;
     }
 
-    function investmentIntegration() external view returns (address) {
+    function investmentIntegrationContract() external view returns (address) {
         return _investmentIntegration;
+    }
+
+    function feeContract() external view returns (address) {
+        return _fee;
+    }
+
+    function bonusContract() external view returns (address) {
+        return _bonus;
     }
 
     function deposit(uint256 _amount) external returns (uint256) {
@@ -90,18 +113,27 @@ contract HonestSavings is IHonestSavings, Ownable {
 
     function withdraw(uint256 _credits) external returns (uint256) {
         require(_credits > 0, "withdraw must be greater than 0");
-        require(_credits <= _shares[_msgSender()], "insufficient shares");
 
-        uint256 amount = _credits.mul(_savings[_msgSender()]).div(_shares[_msgSender()]);
+        uint256 bonusShares = IHonestBonus(_bonus).bonusOf(_msgSender());
+        uint256 sharesWithBonus = _shares[_msgSender()].add(bonusShares);
+        require(_credits <= sharesWithBonus, "insufficient shares");
 
-        _shares[_msgSender()] = _shares[_msgSender()].sub(_credits);
-        _totalShares = _totalShares.sub(_credits);
+        uint256 amount = _credits.mul(_savings[_msgSender()]).div(sharesWithBonus);
+
+        if (_credits > _shares[_msgSender()]) {
+            IHonestBonus(_bonus).subtractBonus(_msgSender(), _credits.sub(_shares[_msgSender()]));
+            _totalShares = _totalShares.sub(_shares[_msgSender()]);
+            _shares[_msgSender()] = 0;
+        } else {
+            _shares[_msgSender()] = _shares[_msgSender()].sub(_credits);
+            _totalShares = _totalShares.sub(_credits);
+        }
 
         _savings[_msgSender()] = _savings[_msgSender()].sub(amount);
         _totalSavings = _totalSavings.sub(amount);
 
         _collect(_msgSender(), _credits, amount);
-        IHonestFee(_fee).reward(_msgSender(), _sharesPercentageOf(_msgSender()));
+        IHonestFee(_fee).reward(_msgSender(), _sharesPercentageOf(_credits));
 
         emit SavingsRedeemed(_msgSender(), _credits, amount);
         return amount;
@@ -114,20 +146,19 @@ contract HonestSavings is IHonestSavings, Ownable {
 
     function sharesOf(address _account) external view returns (uint256) {
         require(_account != address(0), "address must be valid");
-        return _shares[_account];
+        return _shares[_account].add(IHonestBonus(_bonus).bonusOf(_msgSender()));
     }
 
     function totalSavings() external view returns (uint256) {
         return _totalSavings;
     }
 
-    function totalShares() external view returns (uint256) {
-        return _totalShares;
+    function totalShares() public view returns (uint256) {
+        return _totalShares.add(IHonestBonus(_bonus).totalBonuses());
     }
 
     function netValue() external view returns (uint256) {
-        // TODO: implement
-        return 0;
+        return IInvestmentIntegration(_investmentIntegration).totalBalance().mul(uint256(1e18)).div(totalShares());
     }
 
     function apy() external view returns (uint256) {
@@ -169,6 +200,10 @@ contract HonestSavings is IHonestSavings, Ownable {
         return amounts;
     }
 
+    function _totalSharesOf(address _account) internal view returns (uint256) {
+        return _shares[_account].add(IHonestBonus(_bonus).bonusOf(_account));
+    }
+
     function _invest(uint256 _amount) internal returns (uint256[] memory, uint256) {
 
         IERC20(_hAsset).safeApprove(_basket, _amount);
@@ -179,6 +214,7 @@ contract HonestSavings is IHonestSavings, Ownable {
         uint256[] memory shares = new uint256[](length);
         uint256 total;
         for (uint256 i = 0; i < length; ++i) {
+            IERC20(assets[i]).safeApprove(_investmentIntegration, amounts[i]);
             shares[i] = IInvestmentIntegration(_investmentIntegration).invest(assets[i], amounts[i]);
             total = total.add(shares[i]);
         }
@@ -202,10 +238,11 @@ contract HonestSavings is IHonestSavings, Ownable {
         IHonestBasket(_basket).distributeHAssets(_account, bAssets, amounts, totalAmount.sub(_amount));
     }
 
-    function _sharesPercentageOf(address _account) internal view returns (uint256) {
-        if (_totalShares == 0) {
+    function _sharesPercentageOf(uint256 _value) internal view returns (uint256) {
+        uint256 total = _totalShares.add(IHonestBonus(_bonus).totalBonuses());
+        if (total == 0) {
             return 0;
         }
-        return _shares[_account].mul(uint256(1e18)).div(_totalShares);
+        return _value.mul(uint256(1e18)).div(total);
     }
 }
