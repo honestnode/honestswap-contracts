@@ -81,11 +81,6 @@ InitializableReentrancyGuard {
         ERC20Mintable(address(this)).addMinter(_honestBasketInterface);
     }
 
-    //    modifier onlySavingsManager() {
-    //        require(_savingsManager() == msg.sender, "Must be savings manager");
-    //        _;
-    //    }
-
     /**
      * @dev Mint a single hAsset, at a 1:1 ratio with the bAsset. This contract
      *      must have approval to spend the senders bAsset
