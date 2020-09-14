@@ -27,4 +27,22 @@ contract('BAssetValidator', async (accounts) => {
             );
         });
     });
+
+    // describe('validate mint multi', async () => {
+    //     // function validateMint(address _bAsset, uint8 _bAssetStatus, uint256 _bAssetQuantity)
+    //     it('validate failed', async () => {
+    //         await expectRevert.unspecified(
+    //             bAssetValidator.validateMint(ZERO_ADDRESS, 0, 100)
+    //         );
+    //     });
+    // });
+
+    // describe('validate mint', async () => {
+    //     // function validateMintMulti(address[] calldata _bAssets, uint8[] calldata _bAssetStatus, uint256[] calldata _bAssetQuantities)
+    //     it('illegal address', async () => {
+    //         await expectRevert.unspecified(
+    //             bAssetValidator.validateMint(ZERO_ADDRESS, 0, 100)
+    //         );
+    //     });
+    // });
 });
