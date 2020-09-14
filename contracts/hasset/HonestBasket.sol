@@ -39,6 +39,7 @@ InitializableReentrancyGuard {
 
     address[] public bAssets;
     uint8 private maxBassets;
+    uint8[] bAssetStatus;
     // Mapping holds bAsset token address => array index
     mapping(address => uint8) private bAssetsMap;
     mapping(address => uint8) private bAssetStatusMap;
@@ -157,6 +158,16 @@ InitializableReentrancyGuard {
         }
     }
 
+    function _getValidBAssets()
+    internal view
+    returns (address[] memory validBAssets){
+        uint8[] memory statuses = new uint8[](bAssets.length);
+        for (uint8 i = 0; i < bAssets.length; i++) {
+            statuses[i] = bAssetStatusMap[bAssets[i]];
+        }
+        return bAssetValidator.filterValidBAsset(bAssets, statuses);
+    }
+
     /** @dev query bAsset info */
     function getBAssetStatus(address _bAsset) external returns (bool, uint8){
         require(_bAsset != address(0), "bAsset address must be valid");
@@ -239,43 +250,36 @@ InitializableReentrancyGuard {
 
         uint256 bAssetPoolBalance = IERC20(_output).balanceOf(address(this));
         uint256 quantitySwapOut = HAssetHelpers.transferTokens(address(this), _recipient, _output, false, outputMinusFee);
-        uint256 gapQuantity = 0;
-        if (outputMinusFee <= bAssetPoolBalance) {
-            // pool balance enough
-        } else {
-            // pool balance not enough
-            gapQuantity = outputMinusFee.sub(bAssetPoolBalance);
-        }
-
         // handle swap fee, mint hAsset ,save to fee contract
         ERC20Mintable(hAsset).mint(address(honestFeeInterface), swapFee);
 
-        if (gapQuantity > 0) {
-            address[] memory borrowBAssets = new address[](1);
-            borrowBAssets[0] = _output;
-            uint256[] memory borrows = new uint256[](1);
-            borrows[0] = gapQuantity;
-            // calc bAsset supplies to saving
-            (address[] memory allBAssets, uint8[] memory statuses) = _getBasket();
-            address[] memory allValidBAssets = bAssetValidator.filterValidBAsset(allBAssets, statuses);
-            uint256[] memory supplies = new uint256[](allValidBAssets.length);
-            uint256[] memory poolBalances = new uint256[](allValidBAssets.length);
-            uint256 totalBAssetsPoolBalance = 0;
-            for (uint256 i = 0; i < allValidBAssets.length; i++) {
-                poolBalances[i] = IERC20(allValidBAssets[i]).balanceOf(address(this));
-                totalBAssetsPoolBalance.add(poolBalances[i]);
-            }
-            for (uint256 i = 0; i < allValidBAssets.length; i++) {
-                supplies[i] = poolBalances[i].mul(gapQuantity).div(totalBAssetsPoolBalance);
-            }
-            // barrow gap quantity from saving, saving will send bAsset to msg.sender
-            honestSavingsInterface.swap(msg.sender, borrowBAssets, borrows, allValidBAssets, supplies);
-            //            uint256 barrowQuantity = honestSavingsInterface.borrow(msg.sender, _output, gapQuantity);
-            //            uint256 supplyBackToSavingQuantity = honestSavingsInterface.supply(barrowQuantity);
+        if (outputMinusFee > bAssetPoolBalance) {
+            // pool balance not enough
+            _supplyBackToSaving(_output, outputMinusFee.sub(bAssetPoolBalance));
         }
         emit Swapped(msg.sender, _input, _output, outputQuantity, _recipient);
     }
 
+    function _supplyBackToSaving(address _bAsset, uint256 _quantity) internal {
+        address[] memory borrowBAssets = new address[](1);
+        borrowBAssets[0] = _bAsset;
+        uint256[] memory borrows = new uint256[](1);
+        borrows[0] = _quantity;
+        // calc bAsset supplies to saving
+        address[] memory allValidBAssets = _getValidBAssets();
+        uint256[] memory supplies = new uint256[](allValidBAssets.length);
+        uint256[] memory poolBalances = new uint256[](allValidBAssets.length);
+        uint256 totalBAssetsPoolBalance = 0;
+        for (uint256 i = 0; i < allValidBAssets.length; i++) {
+            poolBalances[i] = IERC20(allValidBAssets[i]).balanceOf(address(this));
+            totalBAssetsPoolBalance.add(poolBalances[i]);
+        }
+        for (uint256 i = 0; i < allValidBAssets.length; i++) {
+            supplies[i] = poolBalances[i].mul(_quantity).div(totalBAssetsPoolBalance);
+        }
+        // barrow gap quantity from saving, saving will send bAsset to msg.sender
+        honestSavingsInterface.swap(msg.sender, borrowBAssets, borrows, allValidBAssets, supplies);
+    }
 
     /**
      * @dev Determines both if a trade is valid, and the expected fee or output.
@@ -355,6 +359,7 @@ InitializableReentrancyGuard {
 
         //        bAssets[numberOfBassetsInBasket] = _bAsset;
         bAssets.push(_bAsset);
+        bAssetStatus.push(_status);
         bAssetStatusMap[_bAsset] = _status;
         bAssetsMap[_bAsset] = numberOfBassetsInBasket;
 
@@ -391,6 +396,7 @@ InitializableReentrancyGuard {
 
         if (_newStatus != bAssetStatusMap[_bAsset]) {
             bAssetStatusMap[_bAsset] = _newStatus;
+            bAssetStatus[i] = _newStatus;
             emit BassetStatusChanged(_bAsset, _newStatus);
         }
     }
