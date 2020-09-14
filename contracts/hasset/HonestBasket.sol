@@ -105,7 +105,7 @@ InitializableReentrancyGuard {
     }
 
     /** @dev Basket balance value of each bAsset */
-    function getBasketBalance(address[] calldata _bAssets)
+    function getBAssetsBalance(address[] calldata _bAssets)
     external view
     returns (uint256 sumBalance, uint256[] memory balances){
         require(_bAssets.length > 0, "bAsset address must be valid");
@@ -225,16 +225,15 @@ InitializableReentrancyGuard {
         require(swapValid, reason);
 
         // transfer bAsset to basket
-        uint256 quantitySwapIn = HAssetHelpers.transferTokens(msg.sender, address(this), _input, false, _quantity);
+        //        uint256 quantitySwapIn =
+        HAssetHelpers.transferTokens(msg.sender, address(this), _input, false, _quantity);
 
         // check output bAsset balance
-        uint256 outputBAssetBalance = _getBalance(_output);
-        require(_quantity <= outputBAssetBalance, "Not enough swap out bAsset");
-
-        uint256 swapFeeRate = honestFeeInterface.swapFeeRate();
+        //        uint256 outputBAssetBalance = _getBalance(_output);
+        require(_quantity <= _getBalance(_output), "Not enough swap out bAsset");
 
         // Deduct the swap fee, if any
-        (uint256 swapFee, uint256 outputMinusFee) = _deductSwapFee(_output, _quantity, swapFeeRate);
+        (uint256 swapFee, uint256 outputMinusFee) = _deductSwapFee(_output, _quantity, honestFeeInterface.swapFeeRate());
 
         outputQuantity = outputMinusFee;
 

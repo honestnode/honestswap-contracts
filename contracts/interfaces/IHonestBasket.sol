@@ -20,14 +20,20 @@ interface IHonestBasket {
     /** @dev query bAssets info */
     function getBAssetsStatus(address[] calldata _bAssets) external returns (bool, uint8[] memory);
 
-    /** @dev Setters for Gov to update Basket composition */
-    function addBAsset(address _bAsset, uint8 _status) external returns (uint8 index);
+    function swap(address _input, address _output, uint256 _quantity, address _recipient)
+    external returns (uint256 outputQuantity);
 
-    function updateBAssetStatus(address _bAsset, uint8 _newStatus) external returns (uint8 index);
+    function getSwapOutput(address _input, address _output, uint256 _quantity)
+    external returns (bool, string memory, uint256 outputQuantity);
 
     function swapBAssets(address _integration, uint256 _totalAmounts, address[] calldata _expectAssets)
     external returns (uint256[] memory);
 
     function distributeHAssets(address _account, address[] calldata _bAssets, uint256[] calldata _amounts, uint256 _interests)
     external;
+
+    /** @dev Setters for Gov to update Basket composition */
+    function addBAsset(address _bAsset, uint8 _status) external returns (uint8 index);
+
+    function updateBAssetStatus(address _bAsset, uint8 _newStatus) external returns (uint8 index);
 }
