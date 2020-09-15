@@ -1,11 +1,11 @@
 const BN = require('bn.js');
 const MockDAI = artifacts.require('MockDAI');
-const MockYDAI = artifacts.require('MockYDAI');
 const MockUSDT = artifacts.require('MockUSDT');
-const MockYUSDT = artifacts.require('MockYUSDT');
 const MockUSDC = artifacts.require('MockUSDC');
-const MockYUSDC = artifacts.require('MockYUSDC');
 const MockTUSD = artifacts.require('MockTUSD');
+const MockYDAI = artifacts.require('MockYDAI');
+const MockYUSDT = artifacts.require('MockYUSDT');
+const MockYUSDC = artifacts.require('MockYUSDC');
 const MockYTUSD = artifacts.require('MockYTUSD');
 const YearnV2Integration = artifacts.require('YearnV2Integration');
 
@@ -26,15 +26,15 @@ contract('YearnV2Integration', async (accounts) => {
   };
 
   const createContract = async () => {
-    dai = await MockDAI.new();
-    tusd = await MockTUSD.new();
-    usdc = await MockUSDC.new();
-    usdt = await MockUSDT.new();
-    yDAI = await MockYDAI.new(dai.address);
-    yTUSD = await MockYTUSD.new(tusd.address);
-    yUSDC = await MockYUSDC.new(usdc.address);
-    yUSDT = await MockYUSDT.new(usdt.address);
-    integration = await YearnV2Integration.new();
+    dai = await MockDAI.deployed();
+    tusd = await MockTUSD.deployed();
+    usdc = await MockUSDC.deployed();
+    usdt = await MockUSDT.deployed();
+    yDAI = await MockYDAI.deployed();
+    yTUSD = await MockYTUSD.deployed();
+    yUSDC = await MockYUSDC.deployed();
+    yUSDT = await MockYUSDT.deployed();
+    integration = await YearnV2Integration.deployed();
   };
 
   before(async () => {
@@ -44,34 +44,28 @@ contract('YearnV2Integration', async (accounts) => {
   describe('assets', async () => {
 
     it('add/remove assets', async () => {
-      await integration.addAsset(dai.address, yDAI.address);
-      await integration.addAsset(tusd.address, yTUSD.address);
       let assets = await integration.assets();
-      expect(assets.length).equal(2);
+      expect(assets.length).equal(4);
 
       await integration.removeAsset(dai.address);
       assets = await integration.assets();
-      expect(assets.length).equal(1);
+      expect(assets.length).equal(3);
 
       await integration.removeAsset(tusd.address);
       assets = await integration.assets();
-      expect(assets.length).equal(0);
+      expect(assets.length).equal(2);
+    });
 
+    it ('duplicated add asset', async () => {
       await integration.addAsset(dai.address, yDAI.address);
       await integration.addAsset(tusd.address, yTUSD.address);
+      let assets = await integration.assets();
+      expect(assets.length).equal(4);
+
       await integration.addAsset(usdc.address, yUSDC.address);
       await integration.addAsset(usdt.address, yUSDT.address);
       assets = await integration.assets();
       expect(assets.length).equal(4);
-    });
-
-    it ('duplicated add asset', async () => {
-      const oAssets = await integration.assets();
-
-      await integration.addAsset(dai.address, yDAI.address);
-
-      const nAssets = await integration.assets();
-      expect(nAssets.length).equal(oAssets.length);
     });
 
 
@@ -90,9 +84,16 @@ contract('YearnV2Integration', async (accounts) => {
 
       expect(shares.toString('hex')).equal(d18(100).toString('hex'));
 
+      await integration.invest(dai.address, d18(100), {from: investor1});
       const nBalances = await integration.balanceOf(dai.address);
       expect(nBalances.sub(pBalances).toString('hex')).equal(d18(100).toString('hex'));
     });
+
+    it('invest', async () => {
+
+    });
+
+
   });
 });
 

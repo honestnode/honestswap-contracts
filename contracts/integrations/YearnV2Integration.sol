@@ -28,15 +28,17 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
     EnumerableSet.AddressSet private _assets;
     mapping(address => address) private _contracts;
 
-    constructor() public {
-        _addWhitelisted(_msgSender());
+    function initialize(address[] calldata _addresses, address[] calldata _yAddresses) external onlyWhitelistAdmin {
+        for (uint256 i = 0; i < _addresses.length; ++i) {
+            addAsset(_addresses[i], _yAddresses[i]);
+        }
     }
 
     function assets() external view returns (address[] memory) {
         return _assets.enumerate();
     }
 
-    function addAsset(address _address, address _yAddress) external onlyWhitelisted {
+    function addAsset(address _address, address _yAddress) public onlyWhitelistAdmin {
         require(_address != address(0), 'address must be valid');
         require(_yAddress != address(0), 'yAddress must be valid');
 
@@ -46,7 +48,7 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         }
     }
 
-    function removeAsset(address _address) external onlyWhitelisted {
+    function removeAsset(address _address) external onlyWhitelistAdmin {
         require(_address != address(0), 'address must be valid');
 
         _assets.remove(_address);

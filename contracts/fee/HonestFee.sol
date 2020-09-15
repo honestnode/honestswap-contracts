@@ -14,14 +14,12 @@ contract HonestFee is IHonestFee, WhitelistAdminRole {
     using SafeMath for uint256;
 
     address private _hAsset;
-    uint256 private _swapFeeRate;
-    uint256 private _redeemFeeRate;
+    uint256 private _swapFeeRate = uint256(1e15);
+    uint256 private _redeemFeeRate = uint256(1e15);
 
-    constructor(address _hAssetContract) public {
+    function initialize(address _hAssetContract) external onlyWhitelistAdmin {
         require(_hAssetContract != address(0), 'address must be valid');
         _hAsset = _hAssetContract;
-        _swapFeeRate = uint256(1e16);
-        _redeemFeeRate = uint256(1e16);
     }
 
     function setSwapFeeRate(uint256 _newFeeRate) external onlyWhitelistAdmin {

@@ -1,18 +1,19 @@
 pragma solidity ^0.5.0;
 
-import '@openzeppelin/contracts/math/SafeMath.sol';
-import '@openzeppelin/contracts/ownership/Ownable.sol';
-import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
-import '@openzeppelin/contracts/utils/Address.sol';
+import {WhitelistAdminRole} from '@openzeppelin/contracts/access/roles/WhitelistAdminRole.sol';
+import {SafeMath} from '@openzeppelin/contracts/math/SafeMath.sol';
+import {Ownable} from '@openzeppelin/contracts/ownership/Ownable.sol';
+import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
+import {Address} from '@openzeppelin/contracts/utils/Address.sol';
 
 import {IHonestBasket} from "../interfaces/IHonestBasket.sol";
 import {IHonestBonus} from "../interfaces/IHonestBonus.sol";
 import {IHonestFee} from '../interfaces/IHonestFee.sol';
 import {IHonestSavings} from "../interfaces/IHonestSavings.sol";
-import {IInvestmentIntegration} from "./IInvestmentIntegration.sol";
+import {IInvestmentIntegration} from "../integrations/IInvestmentIntegration.sol";
 
-contract HonestSavings is IHonestSavings, Ownable {
+contract HonestSavings is IHonestSavings, Ownable, WhitelistAdminRole {
 
     using SafeERC20 for IERC20;
     using Address for address;
@@ -33,8 +34,10 @@ contract HonestSavings is IHonestSavings, Ownable {
     uint256 private _totalSavings;
     uint256 private _totalShares;
 
-    constructor(address _hAssetContract, address _basketContract,
-        address _investmentContract, address _feeContract, address _bonusContract) public {
+    function initialize(
+        address _hAssetContract, address _basketContract, address _investmentContract,
+        address _feeContract, address _bonusContract)
+    external onlyWhitelistAdmin {
         require(_hAssetContract != address(0), "hasset contract must be valid");
         require(_basketContract != address(0), "basket contract must be valid");
         require(_investmentContract != address(0), "investment contract must be valid");
@@ -166,19 +169,20 @@ contract HonestSavings is IHonestSavings, Ownable {
         return 0;
     }
 
-    function swap(address _account, address[] calldata _bAssets, uint256[] calldata _borrows, uint256[] calldata _supplies) external {
-        uint256 length = _bAssets.length;
-        require(length == _borrows.length, "mismatch amounts length");
-        require(length == _supplies.length, "mismatch amounts length");
+    function swap(address _account, address[] calldata _bAssets, uint256[] calldata _borrows, address[] calldata _sAssets, uint256[] calldata _supplies) external {
+        require(_bAssets.length == _borrows.length, "mismatch borrows amounts length");
+        require(_sAssets.length == _supplies.length, "mismatch supplies amounts length");
+
+        uint256 supplies;
+        for(uint256 i = 0; i < _sAssets.length; ++i) {
+            supplies = supplies.add(_supplies[i]);
+            IERC20(_sAssets[i]).safeTransferFrom(_msgSender(), address(this), _supplies[i]);
+            IInvestmentIntegration(_investmentIntegration).invest(_sAssets[i], _supplies[i]);
+        }
 
         uint256 borrows;
-        uint256 supplies;
-        for(uint256 i = 0; i < length; ++i) {
+        for(uint256 i = 0; i < _bAssets.length; ++i) {
             borrows = borrows.add(_borrows[i]);
-            supplies = supplies.add(_supplies[i]);
-            IERC20(_bAssets[i]).safeTransferFrom(_msgSender(), address(this), _supplies[i]);
-            IInvestmentIntegration(_investmentIntegration).invest(_bAssets[i], _supplies[i]);
-
             uint256 shares = _borrows[i].mul(uint256(1e18)).div(IInvestmentIntegration(_investmentIntegration).valueOf(_bAssets[i]));
             uint256 amount = IInvestmentIntegration(_investmentIntegration).collect(_bAssets[i], shares);
             IERC20(_bAssets[i]).safeTransfer(_msgSender(), amount);

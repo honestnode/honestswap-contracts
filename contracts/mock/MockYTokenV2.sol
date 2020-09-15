@@ -5,7 +5,7 @@ import '@openzeppelin/contracts/token/ERC20/ERC20Mintable.sol';
 import '@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol';
 import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 
-import "../savings/YearnV2Integration.sol";
+import {yTokenV2} from "../integrations/YearnV2Integration.sol";
 
 contract MockYTokenV2 is yTokenV2, ERC20Mintable, ERC20Detailed {
 

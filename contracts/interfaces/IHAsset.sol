@@ -29,11 +29,4 @@ interface IHAsset {
 
     function redeemMultiInProportionTo(uint256 _bAssetQuantity, address _recipient)
     external returns (uint256 hAssetRedeemed);
-
-    function swap(address _inputBAsset, address _outputBAsset, uint256 _quantity, address _recipient)
-    external returns (uint256 outputQuantity);
-
-    function checkSwap(address _inputBAsset, address _outputBAsset, uint256 _quantity, address _recipient)
-    external returns (bool, string memory, uint256 outputQuantity);
-
 }
