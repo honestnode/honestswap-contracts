@@ -67,53 +67,106 @@ contract('YearnV2Integration', async (accounts) => {
       assets = await integration.assets();
       expect(assets.length).equal(4);
     });
-
-
   });
 
-  describe('invest', async () => {
+  describe('invest and collect', async () => {
 
-    it('invest', async () => {
+    it('dai 18 decimals', async () => {
+
+      // TODO: should add expect expression
+      const price = await integration.priceOf(dai.address);
+      console.log('dai price: ', price.toString());
+
       await dai.mint(investor1, d18(100));
+      await dai.mint(yDAI.address, d18(100));
       await integration.addWhitelisted(investor1);
 
-      const pBalances = await integration.balanceOf(dai.address);
+      let pBalances = await integration.balanceOf(dai.address);
+      console.log('current integration dai balance: ', pBalances.toString());
 
       await dai.approve(integration.address, d18(100), {from: investor1});
       const shares = await integration.invest.call(dai.address, d18(100), {from: investor1});
-
-      expect(shares.toString('hex')).equal(d18(100).toString('hex'));
+      console.log('shares of invest dai: ', shares.toString());
 
       await integration.invest(dai.address, d18(100), {from: investor1});
-      const nBalances = await integration.balanceOf(dai.address);
-      expect(nBalances.sub(pBalances).toString('hex')).equal(d18(100).toString('hex'));
+      let nBalances = await integration.balanceOf(dai.address);
+      console.log('current integration dai balance: ', nBalances.toString());
+
+      await integration.collect(dai.address, shares, {from: investor1});
+
+      nBalances = await dai.balanceOf(investor1);
+      console.log('current user dai balance: ', nBalances.toString());
+
+      nBalances = await integration.balanceOf(dai.address);
+      expect(nBalances.toString()).equal('0');
     });
 
-    it('invest', async () => {
+    it('usdt 6 decimals', async () => {
 
+      // TODO: should add expect expression
+      const price = await integration.priceOf(usdt.address);
+      console.log('usdt price: ', price.toString());
+
+      await usdt.mint(investor1, d6(100));
+      await usdt.mint(yUSDT.address, d6(100));
+
+      let balance = await usdt.balanceOf(yUSDT.address);
+      console.log('current yUSDT USDT balance', balance.toString());
+
+      let pBalances = await integration.balanceOf(usdt.address);
+      console.log('current integration usdt balance: ', pBalances.toString());
+
+      await usdt.approve(integration.address, d6(100), {from: investor1});
+      const shares = await integration.invest.call(usdt.address, d6(100), {from: investor1});
+      console.log('shares of invest usdt: ', shares.toString());
+
+      await integration.invest(usdt.address, d6(100), {from: investor1});
+      let nBalances = await integration.balanceOf(usdt.address);
+      console.log('current integration usdt balance: ', nBalances.toString());
+
+      balance = await usdt.balanceOf(yUSDT.address);
+      console.log('current yUSDT USDT balance', balance.toString());
+      await integration.collect(usdt.address, shares, {from: investor1});
+
+      nBalances = await usdt.balanceOf(investor1);
+      console.log('current user usdt balance: ', nBalances.toString());
+
+      nBalances = await integration.balanceOf(usdt.address);
+      expect(nBalances.toString()).equal('0');
     });
 
+    it('usdt and dai, 6 & 18 decimals', async () => {
 
+      // TODO: should add expect expression
+
+      await integration.addWhitelisted(investor1);
+      await dai.mint(investor1, d18(100));
+      await usdt.mint(investor1, d6(100));
+      await dai.mint(yDAI.address, d18(100));
+      await usdt.mint(yUSDT.address, d6(100));
+
+      await dai.approve(integration.address, d18(100), {from: investor1});
+      await usdt.approve(integration.address, d6(100), {from: investor1});
+
+      const shares1 = await integration.invest.call(dai.address, d18(100), {from: investor1});
+      const shares2 = await integration.invest.call(usdt.address, d6(100), {from: investor1});
+      console.log('user shares of invest dai', shares1.toString());
+      console.log('user shares of invest usdt', shares2.toString());
+
+      await integration.invest(dai.address, d18(100), {from: investor1});
+      await integration.invest(usdt.address, d6(100), {from: investor1});
+
+      let nBalances = await integration.balanceOf(dai.address);
+      console.log('current dai balance: ', nBalances.toString());
+
+      nBalances = await integration.balanceOf(usdt.address);
+      console.log('current usdt balance: ', nBalances.toString());
+
+      const balances = await integration.balances();
+      console.log(balances[2].toString());
+      const balance = await integration.totalBalance(); // TODO: quite strange here always return 0
+      console.log(balance.toString());
+    });
   });
 });
-
-/*
-    function assets() external view returns (address[] memory);
-
-    function addAsset(address _address, address _yAddress) external;
-
-    function removeAsset(address _address, address _yAddress) external;
-
-    function invest(address _asset, uint256 _amount) external returns (uint256);
-
-    function collect(address _bAsset, uint256 _shares) external returns (uint256);
-
-    function valueOf(address _bAsset) external view returns (uint256);
-
-    function balanceOf(address _bAsset) external view returns (uint256);
-
-    function balances() external view returns (address[] memory, uint256[] memory, uint256);
-
-    function totalBalance() external view returns (uint256);
- */
 

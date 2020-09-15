@@ -183,7 +183,7 @@ contract HonestSavings is IHonestSavings, Ownable, WhitelistAdminRole {
         uint256 borrows;
         for(uint256 i = 0; i < _bAssets.length; ++i) {
             borrows = borrows.add(_borrows[i]);
-            uint256 shares = _borrows[i].mul(uint256(1e18)).div(IInvestmentIntegration(_investmentIntegration).valueOf(_bAssets[i]));
+            uint256 shares = _borrows[i].mul(uint256(1e18)).div(IInvestmentIntegration(_investmentIntegration).priceOf(_bAssets[i]));
             uint256 amount = IInvestmentIntegration(_investmentIntegration).collect(_bAssets[i], shares);
             IERC20(_bAssets[i]).safeTransfer(_msgSender(), amount);
         }
