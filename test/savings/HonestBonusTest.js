@@ -12,7 +12,7 @@ contract('', async () => {
 
   let dai, tusd, usdc, usdt, chainlink, bonus;
 
-  const shift = (value, offset) => {
+  const shift = (value, offset = 18) => {
     if (offset === 0) {
       return new BN(value);
     } else if (offset > 0) {
@@ -43,14 +43,13 @@ contract('', async () => {
        * amounts: [1000, 1000, 100, 100],
        * prices: [1.014, 1.003, 0.96, 1.016],
        * fee: 0.1%
-       * expected: [13, 2, 0, 1]
+       * expected: [13e18, 2e18, 0, 15e17]
        */
-      const bonuses = await bonus.calculateBonus([dai.address, tusd.address, usdc.address, usdt.address], [shift(1000, 18), shift(1000, 18), shift(100, 6), shift(100, 6)], shift(1, 15));
-      console.log([bonuses[0].toString(), bonuses[1].toString(), bonuses[2].toString(), bonuses[3].toString()]);
-      expect(bonuses[0].toString('hex')).equal(new BN(13).toString('hex'));
-      expect(bonuses[1].toString('hex')).equal(new BN(2).toString('hex'));
-      expect(bonuses[2].toString('hex')).equal(new BN(0).toString('hex'));
-      expect(bonuses[3].toString('hex')).equal(new BN(1).toString('hex'));
+      const bonuses = await bonus.calculateBonus([dai.address, tusd.address, usdc.address, usdt.address], [shift(1000), shift(1000), shift(100, 6), shift(100, 6)], shift(1, 15));
+      expect(bonuses[0].toString('hex')).equal(shift(13).toString('hex'));
+      expect(bonuses[1].toString('hex')).equal(shift(2).toString('hex'));
+      expect(bonuses[2].toString('hex')).equal(shift(0).toString('hex'));
+      expect(bonuses[3].toString('hex')).equal(shift(15, 17).toString('hex'));
     });
   });
 });

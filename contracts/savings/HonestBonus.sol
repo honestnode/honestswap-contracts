@@ -36,7 +36,7 @@ contract HonestBonus is IHonestBonus, WhitelistedRole {
             }
             uint256 gap = values[i].mod(uint256(1e18));
             if (gap > _fee) {
-                values[i] = _amounts[i].mul(gap.sub(_fee)).div(_getAmountScale(_bAssets[i])).div(uint256(1e18));
+                values[i] = _amounts[i].mul(gap.sub(_fee)).div(_getAmountScale(_bAssets[i]));
             } else {
                 values[i] = 0;
             }
