@@ -3,38 +3,14 @@ const {expectRevert} = require('@openzeppelin/test-helpers');
 const MockHAsset = artifacts.require('MockHAsset');
 const MockHonestBasket = artifacts.require('MockHonestBasket');
 const MockHonestFee = artifacts.require('MockHonestFee');
-const MockHonestBonus = artifacts.require('MockHonestBonus');
+const HonestBonus = artifacts.require('HonestBonus');
 const HonestSavings = artifacts.require('HonestSavings');
+const ChainlinkIntegration = artifacts.require('ChainlinkIntegration');
 const YearnV2Integration = artifacts.require('YearnV2Integration');
 const MockDAI = artifacts.require('MockDAI');
 const MockUSDT = artifacts.require('MockUSDT');
 const MockUSDC = artifacts.require('MockUSDC');
 const MockTUSD = artifacts.require('MockTUSD');
-
-/*
-    function deposit(uint256 _amount) external returns (uint256);
-
-    function withdraw(uint256 _shares) external returns (uint256);
-
-    function savingsOf(address _account) external view returns (uint256);
-
-    function sharesOf(address _account) external view returns (uint256);
-
-    function totalSavings() external view returns (uint256);
-
-    function totalShares() external view returns (uint256);
-
-    function sharePrice() external view returns (uint256);
-
-    function apy() external view returns (uint256);
-
-    function swap(address _account, address[] calldata _bAssets, uint256[] calldata _borrows, address[] calldata _sAssets, uint256[] calldata _supplies)
-    external;
-
-    function investments() external view returns (address[] memory, uint256[] memory _amounts);
-
-    function investmentOf(address[] calldata _bAssets) external view returns (uint256[] memory);
- */
 
 contract('HonestSavings', async (accounts) => {
 
@@ -57,7 +33,7 @@ contract('HonestSavings', async (accounts) => {
   const investor1 = accounts[1];
   const investor2 = accounts[2];
 
-  let hAsset, basket, savings, yearn, fee, bonus, dai, tusd, usdc, usdt;
+  let hAsset, basket, savings, yearn, chainlink, fee, bonus, dai, tusd, usdc, usdt;
 
   const createContract = async () => {
     dai = await MockDAI.deployed();
@@ -76,9 +52,11 @@ contract('HonestSavings', async (accounts) => {
     await usdc.mint(basket.address, shift(1000));
     await usdt.mint(basket.address, shift(1000));
     yearn = await YearnV2Integration.deployed();
+    chainlink = await ChainlinkIntegration.deployed();
     fee = await MockHonestFee.new();
     await fee.initialize(hAsset.address);
-    bonus = await MockHonestBonus.new();
+    bonus = await HonestBonus.new();
+    await bonus.initialize(chainlink.address);
     savings = await HonestSavings.new();
     await yearn.addWhitelisted(savings.address);
     await savings.initialize(hAsset.address, basket.address, yearn.address, fee.address, bonus.address);
@@ -88,29 +66,29 @@ contract('HonestSavings', async (accounts) => {
     await createContract();
   });
 
-  // describe('deposit', async () => {
-  //
-  //   it('deposit zero', async () => {
-  //     await expectRevert.unspecified( // zero amount
-  //       savings.deposit(zero, {from: investor1})
-  //     );
-  //   });
-  //
-  //   it('insufficient balance', async () => {
-  //     await hAsset.mint(investor2, hundred);
-  //     await hAsset.approve(savings.address, twoHundred, {from: investor2});
-  //     await expectRevert.unspecified( // insufficient balance
-  //       savings.deposit(twoHundred, {from: investor2})
-  //     );
-  //   });
-  //
-  //   it('no approve', async () => {
-  //     await hAsset.mint(investor1, hundred);
-  //     await expectRevert.unspecified( // no approve
-  //       savings.deposit(hundred, {from: investor1})
-  //     );
-  //   });
-  // });
+  describe('deposit', async () => {
+
+    it('deposit zero', async () => {
+      await expectRevert.unspecified( // zero amount
+        savings.deposit(zero, {from: investor1})
+      );
+    });
+
+    it('insufficient balance', async () => {
+      await hAsset.mint(investor2, hundred);
+      await hAsset.approve(savings.address, twoHundred, {from: investor2});
+      await expectRevert.unspecified( // insufficient balance
+        savings.deposit(twoHundred, {from: investor2})
+      );
+    });
+
+    it('no approve', async () => {
+      await hAsset.mint(investor1, hundred);
+      await expectRevert.unspecified( // no approve
+        savings.deposit(hundred, {from: investor1})
+      );
+    });
+  });
 
   describe('deposit and withdraw', async () => {
 
@@ -149,14 +127,24 @@ contract('HonestSavings', async (accounts) => {
 
       await printStatement(investor);
     };
-    //
-    // it('deposit and withdraw without fee and bonus', async () => {
-    //   await deposit100(investor1);
-    // });
+
+    it('deposit and withdraw without fee and bonus', async () => {
+      await deposit100(investor1);
+    });
 
     it('deposit and withdraw without bonus', async () => {
       // assume the fee have 200 hAssets
       hAsset.mint(fee.address, shift(200));
+      await deposit100(investor1);
+      await deposit100(investor2);
+      await withdraw100(investor1);
+      await withdraw100(investor2);
+    });
+
+    it('deposit and withdraw', async () => {
+      // assume the fee have 200 hAssets and investor1 has 200e18 bonus
+      hAsset.mint(fee.address, shift(200));
+      bonus.addBonus(investor1, shift(200));
       await deposit100(investor1);
       await deposit100(investor2);
       await withdraw100(investor1);

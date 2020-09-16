@@ -114,11 +114,9 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         require(_amount > 0, "withdraw must be greater than 0");
         require(_amount <= _savings[_msgSender()], "insufficient savings");
 
-        uint256 bonusShares = IHonestBonus(_bonus).bonusOf(_msgSender());
-        uint256 sharesWithBonus = _shares[_msgSender()].add(bonusShares);
-
-        uint256 credits = _amount.mul(sharesWithBonus).div(_savings[_msgSender()]);
-        uint256 creditsPercentage = _sharesPercentageOf(credits);
+        uint256 credits = _amount.mul(sharesOf(_msgSender())).div(_savings[_msgSender()]);
+        uint256 actualCredits = _adjustSharesWithBonus(credits);
+        IHonestFee(_fee).reward(_msgSender(), actualCredits.mul(uint256(1e18)).div(_totalShares));
 
         if (credits > _shares[_msgSender()]) {
             IHonestBonus(_bonus).subtractBonus(_msgSender(), credits.sub(_shares[_msgSender()]));
@@ -132,8 +130,7 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         _savings[_msgSender()] = _savings[_msgSender()].sub(_amount);
         _totalSavings = _totalSavings.sub(_amount);
 
-        uint256 amount = _collect(_msgSender(), credits, _amount);
-        IHonestFee(_fee).reward(_msgSender(), creditsPercentage);
+        uint256 amount = _collect(_msgSender(), actualCredits, _amount);
 
         emit SavingsRedeemed(_msgSender(), credits, amount);
         return amount;
@@ -144,9 +141,9 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         return _savings[_account];
     }
 
-    function sharesOf(address _account) external view returns (uint256) {
+    function sharesOf(address _account) public view returns (uint256) {
         require(_account != address(0), "address must be valid");
-        return _shares[_account].add(IHonestBonus(_bonus).bonusOf(_msgSender()));
+        return _shares[_account].add(IHonestBonus(_bonus).bonusOf(_account));
     }
 
     function totalSavings() external view returns (uint256) {
@@ -201,10 +198,6 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
             amounts[i] = IInvestmentIntegration(_investmentIntegration).balanceOf(_bAssets[i]);
         }
         return amounts;
-    }
-
-    function _totalSharesOf(address _account) internal view returns (uint256) {
-        return _shares[_account].add(IHonestBonus(_bonus).bonusOf(_account));
     }
 
     function _invest(uint256 _amount) internal returns (uint256[] memory, uint256) {
@@ -262,11 +255,11 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         return totalAmount;
     }
 
-    function _sharesPercentageOf(uint256 _value) internal view returns (uint256) {
-        uint256 total = _totalShares.add(IHonestBonus(_bonus).totalBonuses());
+    function _adjustSharesWithBonus(uint256 _value) internal view returns (uint256) {
+        uint256 total = totalShares();
         if (total == 0) {
             return 0;
         }
-        return _value.mul(uint256(1e18)).div(total);
+        return _value.mul(_totalShares).div(total);
     }
 }
