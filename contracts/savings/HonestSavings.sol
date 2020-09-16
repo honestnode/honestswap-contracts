@@ -2,8 +2,8 @@ pragma solidity ^0.5.0;
 
 import {WhitelistAdminRole} from '@openzeppelin/contracts/access/roles/WhitelistAdminRole.sol';
 import {SafeMath} from '@openzeppelin/contracts/math/SafeMath.sol';
-import {Ownable} from '@openzeppelin/contracts/ownership/Ownable.sol';
 import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+import {ERC20Detailed} from '@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol';
 import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import {Address} from '@openzeppelin/contracts/utils/Address.sol';
 
@@ -12,12 +12,14 @@ import {IHonestBonus} from "../interfaces/IHonestBonus.sol";
 import {IHonestFee} from '../interfaces/IHonestFee.sol';
 import {IHonestSavings} from "../interfaces/IHonestSavings.sol";
 import {IInvestmentIntegration} from "../integrations/IInvestmentIntegration.sol";
+import {StandardERC20} from "../util/StandardERC20.sol";
 
-contract HonestSavings is IHonestSavings, Ownable, WhitelistAdminRole {
+contract HonestSavings is IHonestSavings, WhitelistAdminRole {
 
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
+    using StandardERC20 for ERC20Detailed;
 
     event SavingsDeposited(address indexed account, uint256 amount, uint256 shares);
     event SavingsRedeemed(address indexed account, uint256 shares, uint256 amount);
@@ -38,40 +40,34 @@ contract HonestSavings is IHonestSavings, Ownable, WhitelistAdminRole {
         address _hAssetContract, address _basketContract, address _investmentContract,
         address _feeContract, address _bonusContract)
     external onlyWhitelistAdmin {
-        require(_hAssetContract != address(0), "hasset contract must be valid");
-        require(_basketContract != address(0), "basket contract must be valid");
-        require(_investmentContract != address(0), "investment contract must be valid");
-        require(_fee != address(0), "fee contract must be valid");
-        require(_bonus != address(0), "bonus contract must be valid");
-
-        _hAsset = _hAssetContract;
-        _basket = _basketContract;
-        _investmentIntegration = _investmentContract;
-        _fee = _feeContract;
-        _bonus = _bonusContract;
+        setHAssetContract(_hAssetContract);
+        setBasketContract(_basketContract);
+        setInvestmentIntegrationContract(_investmentContract);
+        setFeeContract(_feeContract);
+        setBonusContract(_bonusContract);
     }
 
-    function setHAssetContract(address _hAssetContract) external onlyOwner {
+    function setHAssetContract(address _hAssetContract) public onlyWhitelistAdmin {
         require(_hAssetContract != address(0), "address must be valid");
         _hAsset = _hAssetContract;
     }
 
-    function setBasketContract(address _basketContract) external onlyOwner {
+    function setBasketContract(address _basketContract) public onlyWhitelistAdmin {
         require(_basketContract != address(0), "address must be valid");
         _basket = _basketContract;
     }
 
-    function setInvestmentIntegrationContract(address _investmentContract) external onlyOwner {
+    function setInvestmentIntegrationContract(address _investmentContract) public onlyWhitelistAdmin {
         require(_investmentContract != address(0), "address must be valid");
         _investmentIntegration = _investmentContract;
     }
 
-    function setFeeContract(address _feeContract) external onlyOwner {
+    function setFeeContract(address _feeContract) public onlyWhitelistAdmin {
         require(_feeContract != address(0), "address must be valid");
         _fee = _feeContract;
     }
 
-    function setBonusContract(address _bonusContract) external onlyOwner {
+    function setBonusContract(address _bonusContract) public onlyWhitelistAdmin {
         require(_bonusContract != address(0), "address must be valid");
         _bonus = _bonusContract;
     }
@@ -104,7 +100,7 @@ contract HonestSavings is IHonestSavings, Ownable, WhitelistAdminRole {
         _savings[_msgSender()] = _savings[_msgSender()].add(_amount);
         _totalSavings = _totalSavings.add(_amount);
 
-        (uint256[] memory shares, uint256 totalShares) = _invest(_amount);
+        (uint256[] memory _, uint256 totalShares) = _invest(_amount);
 
         _shares[_msgSender()] = _shares[_msgSender()].add(totalShares);
         _totalShares = _totalShares.add(totalShares);
@@ -114,31 +110,32 @@ contract HonestSavings is IHonestSavings, Ownable, WhitelistAdminRole {
 
     }
 
-    function withdraw(uint256 _credits) external returns (uint256) {
-        require(_credits > 0, "withdraw must be greater than 0");
+    function withdraw(uint256 _amount) external returns (uint256) {
+        require(_amount > 0, "withdraw must be greater than 0");
+        require(_amount <= _savings[_msgSender()], "insufficient savings");
 
         uint256 bonusShares = IHonestBonus(_bonus).bonusOf(_msgSender());
         uint256 sharesWithBonus = _shares[_msgSender()].add(bonusShares);
-        require(_credits <= sharesWithBonus, "insufficient shares");
 
-        uint256 amount = _credits.mul(_savings[_msgSender()]).div(sharesWithBonus);
+        uint256 credits = _amount.mul(sharesWithBonus).div(_savings[_msgSender()]);
+        uint256 creditsPercentage = _sharesPercentageOf(credits);
 
-        if (_credits > _shares[_msgSender()]) {
-            IHonestBonus(_bonus).subtractBonus(_msgSender(), _credits.sub(_shares[_msgSender()]));
+        if (credits > _shares[_msgSender()]) {
+            IHonestBonus(_bonus).subtractBonus(_msgSender(), credits.sub(_shares[_msgSender()]));
             _totalShares = _totalShares.sub(_shares[_msgSender()]);
             _shares[_msgSender()] = 0;
         } else {
-            _shares[_msgSender()] = _shares[_msgSender()].sub(_credits);
-            _totalShares = _totalShares.sub(_credits);
+            _shares[_msgSender()] = _shares[_msgSender()].sub(credits);
+            _totalShares = _totalShares.sub(credits);
         }
 
-        _savings[_msgSender()] = _savings[_msgSender()].sub(amount);
-        _totalSavings = _totalSavings.sub(amount);
+        _savings[_msgSender()] = _savings[_msgSender()].sub(_amount);
+        _totalSavings = _totalSavings.sub(_amount);
 
-        _collect(_msgSender(), _credits, amount);
-        IHonestFee(_fee).reward(_msgSender(), _sharesPercentageOf(_credits));
+        uint256 amount = _collect(_msgSender(), credits, _amount);
+        IHonestFee(_fee).reward(_msgSender(), creditsPercentage);
 
-        emit SavingsRedeemed(_msgSender(), _credits, amount);
+        emit SavingsRedeemed(_msgSender(), credits, amount);
         return amount;
     }
 
@@ -160,7 +157,7 @@ contract HonestSavings is IHonestSavings, Ownable, WhitelistAdminRole {
         return _totalShares.add(IHonestBonus(_bonus).totalBonuses());
     }
 
-    function netValue() external view returns (uint256) {
+    function sharePrice() external view returns (uint256) {
         return IInvestmentIntegration(_investmentIntegration).totalBalance().mul(uint256(1e18)).div(totalShares());
     }
 
@@ -185,18 +182,20 @@ contract HonestSavings is IHonestSavings, Ownable, WhitelistAdminRole {
             borrows = borrows.add(_borrows[i]);
             uint256 shares = _borrows[i].mul(uint256(1e18)).div(IInvestmentIntegration(_investmentIntegration).priceOf(_bAssets[i]));
             uint256 amount = IInvestmentIntegration(_investmentIntegration).collect(_bAssets[i], shares);
-            IERC20(_bAssets[i]).safeTransfer(_msgSender(), amount);
+            IERC20(_bAssets[i]).safeTransfer(_account, amount);
         }
         require(borrows > 0, "amounts must greater than 0");
         require(borrows == supplies, "mismatch amounts");
     }
 
     function investments() external view returns (address[] memory, uint256[] memory) {
+        // TODO: refactor
         (address[] memory _assets, uint256[] memory _balances, uint256 _) = IInvestmentIntegration(_investmentIntegration).balances();
         return (_assets, _balances);
     }
 
     function investmentOf(address[] calldata _bAssets) external view returns (uint256[] memory) {
+        // TODO: refactor
         uint256[] memory amounts = new uint256[](_bAssets.length);
         for (uint256 i = 0; i < _bAssets.length; ++i) {
             amounts[i] = IInvestmentIntegration(_investmentIntegration).balanceOf(_bAssets[i]);
@@ -209,8 +208,7 @@ contract HonestSavings is IHonestSavings, Ownable, WhitelistAdminRole {
     }
 
     function _invest(uint256 _amount) internal returns (uint256[] memory, uint256) {
-
-        IERC20(_hAsset).safeApprove(_basket, _amount);
+        IERC20(_hAsset).approve(_basket, _amount);
         address[] memory assets = IInvestmentIntegration(_investmentIntegration).assets();
         uint256[] memory amounts = IHonestBasket(_basket).swapBAssets(_investmentIntegration, _amount, assets);
 
@@ -218,28 +216,50 @@ contract HonestSavings is IHonestSavings, Ownable, WhitelistAdminRole {
         uint256[] memory shares = new uint256[](length);
         uint256 total;
         for (uint256 i = 0; i < length; ++i) {
-            IERC20(assets[i]).safeApprove(_investmentIntegration, amounts[i]);
-            shares[i] = IInvestmentIntegration(_investmentIntegration).invest(assets[i], amounts[i]);
+            uint256 actualAmount = ERC20Detailed(assets[i]).resume(amounts[i]);
+            IERC20(assets[i]).safeApprove(_investmentIntegration, actualAmount);
+            shares[i] = IInvestmentIntegration(_investmentIntegration).invest(assets[i], actualAmount);
             total = total.add(shares[i]);
         }
         return (shares, total);
     }
 
-    function _collect(address _account, uint256 _credits, uint256 _amount) internal {
-
+    function _collect(address _account, uint256 _credits, uint256 _amount) internal returns (uint256) {
         (address[] memory bAssets, uint256[] memory balances, uint256 totalBalance) =
-        IInvestmentIntegration(_investmentIntegration).balances();
+        IInvestmentIntegration(_investmentIntegration).shares();
+        require(totalBalance > 0, 'unexpected total balance');
 
         uint256[] memory amounts = new uint256[](bAssets.length);
         uint256 totalAmount;
+        // because of the percentage calculation, the shares may be gap from actual balances
+        uint256 gap;
         for (uint256 i = 0; i < bAssets.length; ++i) {
             uint256 shares = _credits.mul(balances[i]).div(totalBalance);
+            if (shares == 0) {
+                continue;
+            }
+            if (shares >= balances[i]) {
+                gap += shares.sub(balances[i]);
+                shares = balances[i];
+            } else if (balances[i] >= shares.add(gap)) {
+                shares = shares.add(gap);
+                gap = 0;
+            } else {
+                gap = gap.sub(balances[i].sub(shares));
+                shares = balances[i];
+            }
             amounts[i] = IInvestmentIntegration(_investmentIntegration).collect(bAssets[i], shares);
             totalAmount = totalAmount.add(amounts[i]);
-            IERC20(bAssets[i]).approve(_basket, amounts[i]);
+            amounts[i] = ERC20Detailed(bAssets[i]).resume(amounts[i]);
+            IERC20(bAssets[i]).safeApprove(_basket, amounts[i]);
         }
-
-        IHonestBasket(_basket).distributeHAssets(_account, bAssets, amounts, totalAmount.sub(_amount));
+        require(gap == 0, 'failed in gap share');
+        if (totalAmount > _amount) {
+            IHonestBasket(_basket).distributeHAssets(_account, bAssets, amounts, totalAmount.sub(_amount));
+        } else {
+            IHonestBasket(_basket).distributeHAssets(_account, bAssets, amounts, 0);
+        }
+        return totalAmount;
     }
 
     function _sharesPercentageOf(uint256 _value) internal view returns (uint256) {

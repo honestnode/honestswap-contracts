@@ -16,6 +16,10 @@ interface IInvestmentIntegration {
 
     function priceOf(address _bAsset) external view returns (uint256);
 
+    function shareOf(address _bAsset) external view returns (uint256);
+
+    function shares() external view returns (address[] memory, uint256[] memory, uint256);
+
     function balanceOf(address _bAsset) external view returns (uint256);
 
     function balances() external view returns (address[] memory, uint256[] memory, uint256);

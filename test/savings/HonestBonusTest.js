@@ -29,7 +29,7 @@ contract('', async () => {
     usdt = await MockUSDT.deployed();
     chainlink = await ChainlinkIntegration.deployed();
     bonus = await HonestBonus.new();
-    bonus.initialize(chainlink.address);
+    await bonus.initialize(chainlink.address);
   };
 
   before(async () => {

@@ -92,15 +92,30 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         return yTokenV2(yToken).getPricePerFullShare();
     }
 
+    function shareOf(address _bAsset) public view returns (uint256) {
+        require(_assets.contains(_bAsset), 'asset not supported');
+
+        return ERC20Detailed(_contractOf(_bAsset)).standardBalanceOf(address(this));
+    }
+
+    function shares() external view returns (address[] memory, uint256[] memory, uint256) {
+        uint256[] memory shares = new uint256[](_assets.length());
+        uint256 totalShare;
+        for (uint256 i = 0; i < _assets.length(); ++i) {
+            shares[i] = shareOf(_assets.get(i));
+            totalShare = totalShare.add(shares[i]);
+        }
+        return (_assets.enumerate(), shares, totalShare);
+    }
+
     function balanceOf(address _asset) external view returns (uint256) {
         return _balanceOf(_asset);
     }
 
     function balances() external view returns (address[] memory, uint256[] memory, uint256) {
-        uint256 length = _assets.length();
-        uint256[] memory aBalances = new uint256[](length);
+        uint256[] memory aBalances = new uint256[](_assets.length());
         uint256 totalBalances;
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint256 i = 0; i < _assets.length(); ++i) {
             aBalances[i] = _balanceOf(_assets.get(i));
             totalBalances = totalBalances.add(aBalances[i]);
         }

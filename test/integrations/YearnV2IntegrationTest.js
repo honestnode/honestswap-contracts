@@ -139,7 +139,6 @@ contract('YearnV2Integration', async (accounts) => {
 
       // TODO: should add expect expression
 
-      await integration.addWhitelisted(investor1);
       await dai.mint(investor1, d18(100));
       await usdt.mint(investor1, d6(100));
       await dai.mint(yDAI.address, d18(100));

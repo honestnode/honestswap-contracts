@@ -49,7 +49,7 @@ contract MockHonestSaving is IHonestSavings {
         return _totalShares;
     }
 
-    function netValue() external view returns (uint256) {
+    function sharePrice() external view returns (uint256) {
         return _totalSavings.mul(uint256(1e18)).div(_totalShares);
     }
 

@@ -1,5 +1,7 @@
+const BN = require('bn.js');
 const YearnV2Integration = artifacts.require('YearnV2Integration');
 const ChainlinkIntegration = artifacts.require('ChainlinkIntegration');
+const MockHAsset = artifacts.require('MockHAsset');
 const MockDAI = artifacts.require('MockDAI');
 const MockUSDT = artifacts.require('MockUSDT');
 const MockUSDC = artifacts.require('MockUSDC');
@@ -14,8 +16,21 @@ const MockTUSD2ETHFeeds = artifacts.require('MockTUSD2ETHFeeds');
 const MockUSDC2ETHFeeds = artifacts.require('MockUSDC2ETHFeeds');
 const MockUSDT2ETHFeeds = artifacts.require('MockUSDT2ETHFeeds');
 
+const shift = (value, offset = 18) => {
+  if (offset === 0) {
+    return new BN(value);
+  } else if (offset > 0) {
+    return new BN(value).mul(new BN(10).pow(new BN(offset)));
+  } else {
+    return new BN(value).div(new BN(10).pow(new BN(offset)));
+  }
+}
+
 module.exports = function (deployer, network, accounts) {
+
   deployer.then(async () => {
+
+    await deployer.deploy(MockHAsset);
 
     await deployer.deploy(MockDAI);
     await deployer.deploy(MockUSDT);
@@ -36,6 +51,11 @@ module.exports = function (deployer, network, accounts) {
     const yTUSD = await MockYTUSD.deployed();
     const yUSDC = await MockYUSDC.deployed();
     const yUSDT = await MockYUSDT.deployed();
+
+    await dai.mint(yDAI.address, shift(1000));
+    await tusd.mint(yTUSD.address, shift(1000));
+    await usdc.mint(yUSDC.address, shift(1000, 6));
+    await usdt.mint(yUSDT.address, shift(1000, 6));
 
     await deployer.deploy(MockETH2USDFeeds);
     await deployer.deploy(MockDAI2USDFeeds);

@@ -31,8 +31,8 @@ contract MockYTokenV2 is yTokenV2, ERC20Mintable, ERC20Detailed {
     }
 
     function getPricePerFullShare() public view returns (uint256) {
-        // based on block.timestamp
-        return block.timestamp.sub(uint256(1599170000)).mul(uint256(1e12));
+        // based on block.timestamp, div 10 to make change happened each 10 seconds
+        return block.timestamp.div(uint256(10)).sub(uint256(159917000)).mul(uint256(1e13));
     }
 
     function _setToken(address _tokenAddress) internal {
