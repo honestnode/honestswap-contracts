@@ -17,7 +17,6 @@ import {IHonestBonus} from "../interfaces/IHonestBonus.sol";
 import {IHonestFee} from "../interfaces/IHonestFee.sol";
 import {IBAssetValidator} from "../validator/IBAssetValidator.sol";
 import {IPlatformIntegration} from "../interfaces/IPlatformIntegration.sol";
-import {IBAssetPrice} from "../price/IBAssetPrice.sol";
 import {HAssetHelpers} from "../util/HAssetHelpers.sol";
 import {HonestMath} from "../util/HonestMath.sol";
 
@@ -43,7 +42,6 @@ InitializableReentrancyGuard {
     event RedemptionFeeChanged(uint256 fee);
 
     IHonestBasket private honestBasketInterface;
-    IBAssetPrice private bAssetPriceInterface;
     IHonestBonus private honestBonusInterface;
     IHonestFee private honestFeeInterface;
     IHonestSavings private honestSavingsInterface;
@@ -59,7 +57,6 @@ InitializableReentrancyGuard {
         address _nexus,
         address _honestBasketInterface,
         address _honestSavingsInterface,
-        address _bAssetPriceInterface,
         address _honestBonusInterface,
         address _honestFeeInterface,
         address _bAssetValidator
@@ -73,7 +70,6 @@ InitializableReentrancyGuard {
 
         honestBasketInterface = IHonestBasket(_honestBasketInterface);
         honestSavingsInterface = IHonestSavings(_honestSavingsInterface);
-        bAssetPriceInterface = IBAssetPrice(_bAssetPriceInterface);
         honestBonusInterface = IHonestBonus(_honestBonusInterface);
         honestFeeInterface = IHonestFee(_honestFeeInterface);
         bAssetValidator = IBAssetValidator(_bAssetValidator);
@@ -175,23 +171,11 @@ InitializableReentrancyGuard {
 
         // transfer bAsset to basket
         uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, _getBasketAddress(), _bAsset, false, _bAssetQuantity);
-        // calc weight
-        // query usd price for bAsset
-        (uint256 bAssetPrice, uint256 bAssetPriceDecimals) = bAssetPriceInterface.getBAssetPrice(_bAsset);
+
         uint256 redeemFeeRate = honestFeeInterface.redeemFeeRate();
-        if (bAssetPrice > 0 && bAssetPriceDecimals > 0) {
-            uint256 priceScale = 10 ** bAssetPriceDecimals;
-            if (bAssetPrice > priceScale.add(redeemFeeRate.mulTruncate(priceScale))) {
-                //                uint256 bonusWeightFactor = bAssetPrice.sub(priceScale.add(redeemFeeRate.mulTruncate(priceScale)));
-                //                uint256 feeFactor = redeemFeeRate.mulTruncate(priceScale);
-                //                bonusWeightFactor = bonusWeightFactor.sub(feeFactor);
-                //                uint256 bonusWeight = bonusWeightFactor.mulTruncateScale(quantityTransferred, priceScale);
-                //                if (bonusWeight > 0) {
-                // add bonus weight
-                //                honestBonusInterface.addBonus(_recipient, bonusWeightFactor.mulTruncateScale(quantityTransferred, priceScale));
-                honestBonusInterface.addBonus(_recipient, bAssetPrice.sub(priceScale.add(redeemFeeRate.mulTruncate(priceScale))).mulTruncateScale(quantityTransferred, priceScale));
-                //                }
-            }
+        uint256 bonus = honestBonusInterface.calculateBonus(_bAsset, _bAssetQuantity, redeemFeeRate);
+        if (bonus > 0) {
+            honestBonusInterface.addBonus(msg.sender, bonus);
         }
 
         // Mint the HAsset
@@ -239,34 +223,11 @@ InitializableReentrancyGuard {
     function _addMintBonus(address[] memory _bAssets, uint256[] memory _bAssetQuantities, address _recipient) internal {
         require(_recipient != address(0), "Must be a valid recipient");
         require(_bAssetQuantities.length > 0 && _bAssetQuantities.length == _bAssets.length, "Input array mismatch");
-        // query latest bAsset price
-        (uint256[] memory prices, uint256[] memory decimals) = bAssetPriceInterface.getBAssetsPrice(_bAssets);
-        require(_bAssets.length == prices.length, "bAsset price array count mismatch");
-        uint256 redeemFeeRate = honestFeeInterface.redeemFeeRate();
-        uint256 priceScale = 1;
-        uint256 totalBonusWeight = 0;
-        for (uint256 i = 0; i < _bAssets.length; i++) {
-            if (_bAssetQuantities[i] > 0 && prices[i] > 0 && decimals[i] > 0) {
-                if (decimals[i] < 18) {
-                    priceScale = 10 ** (18 - decimals[i]);
-                }
-                if (prices[i].mulTruncate(priceScale) > (HonestMath.getFullScale().add(redeemFeeRate))) {// scale to 1e18
-                    //                        uint256 bonusWeightFactor = prices[i].sub(priceScale).sub(redeemFeeRate.mulTruncate(priceScale));
-                    //                        if (bonusWeightFactor > 0) {
-                    //                            bonusWeightFactor = bonusWeightFactor.sub(redeemFeeRate.mulTruncate(priceScale));
-                    //                        if (bonusWeightFactor > 0) {
-                    //                        totalBonusWeight.add(bonusWeightFactor.mulTruncateScale(quantityTransferred, priceScale));
-                    totalBonusWeight.add((prices[i].mulTruncate(priceScale).sub(HonestMath.getFullScale().add(redeemFeeRate))).mulTruncate(_bAssetQuantities[i]));
-                    //                    totalBonusWeight.add(prices[i].sub(priceScale).sub(redeemFeeRate.mulTruncate(priceScale)).mulTruncateScale(quantityTransferred, priceScale));
-                    //                        }
-                    //                        }
-                }
-            }
-        }
 
-        // add bonus weight
-        if (totalBonusWeight > 0) {
-            honestBonusInterface.addBonus(_recipient, totalBonusWeight);
+        uint256 redeemFeeRate = honestFeeInterface.redeemFeeRate();
+        uint256 bonus = honestBonusInterface.calculateBonuses(_bAssets, _bAssetQuantities, redeemFeeRate);
+        if (bonus > 0) {
+            honestBonusInterface.addBonus(_recipient, bonus);
         }
     }
 

@@ -28,23 +28,35 @@ contract HonestBonus is IHonestBonus, WhitelistedRole {
         _priceIntegration = _contract;
     }
 
-    function calculateBonus(address[] calldata _bAssets, uint256[] calldata _amounts, uint256 _fee)
-    external view returns (uint256[] memory) {
+    function calculateBonus(address _bAsset, uint256 _amount, uint256 _fee) external view returns (uint256) {
+        require(_priceIntegration != address(0), 'price integration not initialized');
+        uint256 value = IAssetPriceIntegration(_priceIntegration).getPrice(_bAsset);
+        if (value <= uint256(1e18)) {
+            return 0;
+        }
+        uint256 gap = value.mod(uint256(1e18));
+        if (gap > _fee) {
+            return _amount.mul(gap.sub(_fee)).div(_getAmountScale(_bAsset));
+        } else {
+            return 0;
+        }
+    }
+
+    function calculateBonuses(address[] calldata _bAssets, uint256[] calldata _amounts, uint256 _fee)
+    external view returns (uint256) {
         require(_priceIntegration != address(0), 'price integration not initialized');
         uint256[] memory values = IAssetPriceIntegration(_priceIntegration).getPrices(_bAssets);
+        uint256 totalValue;
         for(uint256 i = 0; i < _bAssets.length; ++i) {
             if (values[i] <= uint256(1e18)) {
-                values[i] = 0;
                 continue;
             }
             uint256 gap = values[i].mod(uint256(1e18));
             if (gap > _fee) {
-                values[i] = _amounts[i].mul(gap.sub(_fee)).div(_getAmountScale(_bAssets[i]));
-            } else {
-                values[i] = 0;
+                totalValue = totalValue.add(_amounts[i].mul(gap.sub(_fee)).div(_getAmountScale(_bAssets[i])));
             }
         }
-        return values;
+        return totalValue;
     }
 
     function bonusOf(address _account) external view returns (uint256) {

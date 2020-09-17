@@ -6,7 +6,9 @@ interface IHonestBonus {
 
     function setPriceIntegration(address _contract) external;
 
-    function calculateBonus(address[] calldata _bAssets, uint256[] calldata _amounts, uint256 _fee) external view returns (uint256[] memory);
+    function calculateBonus(address _bAsset, uint256 _amount, uint256 _fee) external view returns (uint256);
+
+    function calculateBonuses(address[] calldata _bAssets, uint256[] calldata _amounts, uint256 _fee) external view returns (uint256);
 
     function bonusOf(address _account) external view returns (uint256);
 
