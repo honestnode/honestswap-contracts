@@ -74,7 +74,7 @@ InitializableReentrancyGuard {
         honestFeeInterface = IHonestFee(_honestFeeInterface);
         bAssetValidator = IBAssetValidator(_bAssetValidator);
 
-        ERC20Mintable(address(this)).addMinter(_honestBasketInterface);
+    //        ERC20Mintable(address(this)).addMinter(_honestBasketInterface);
     }
 
     /**
