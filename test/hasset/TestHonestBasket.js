@@ -87,4 +87,13 @@ contract('HonestBasket', async (accounts) => {
         });
     });
 
+    describe('constructor', async () => {
+        it('illegal address', async () => {
+            await expectRevert.unspecified(
+                basket.initialize(owner, hAsset.address, bAssets, savings.address, fee.address, bAssetValidator.address)
+            )
+            ;
+        });
+    });
+
 });

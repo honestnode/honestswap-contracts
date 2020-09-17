@@ -376,13 +376,13 @@ InitializableReentrancyGuard {
         address[] memory bAssets = bAssetValidator.filterValidBAsset(allBAssets, statuses);
 
         require(bAssets.length > 0, "No valid bAssets");
-        uint len = bAssets.length;
+//        uint len = bAssets.length;
         (uint256 sumBalance, uint256[] memory bAssetBalances) = honestBasketInterface.getBAssetsBalance(bAssets);
         require(bAssets.length == bAssetBalances.length, "Query bAsset balance failed");
         // calc bAssets quantity in Proportion
 
-        uint256[] memory bAssetQuantities = new uint256[](len);
-        for (uint256 i = 0; i < len; i++) {
+        uint256[] memory bAssetQuantities = new uint256[](bAssets.length);
+        for (uint256 i = 0; i < bAssets.length; i++) {
             uint256 quantity = _bAssetQuantity.mul(bAssetBalances[i]);
             bAssetQuantities[i] = quantity.div(sumBalance);
         }
@@ -503,11 +503,21 @@ InitializableReentrancyGuard {
         require(allValidBAssets.length > 0, "No valid bAsset in basket");
         uint256[] memory supplies = new uint256[](allValidBAssets.length);
         // query valid bAssets balance
-        (uint256 sumBalance, uint256[] memory bAssetBalances) = honestBasketInterface.getBAssetsBalance(allValidBAssets);
+        (uint256 sumBalance, uint256[] memory bAssetBalances) = _getBAssetBasketBalance(allValidBAssets);
         for (uint256 i = 0; i < allValidBAssets.length; i++) {
             supplies[i] = bAssetBalances[i].mul(_supplyBackToSaving).div(sumBalance);
         }
         honestSavingsInterface.swap(msg.sender, _borrowBAssets, _gapQuantities, allValidBAssets, supplies);
+    }
+
+    function _getBAssetBasketBalance(address[] memory _bAssets)
+    internal
+    returns (uint256 sumBalance, uint256[] memory bAssetBalances){
+        sumBalance = 0;
+        for (uint256 i = 0; i < _bAssets.length; i++) {
+            bAssetBalances[i] = IERC20(_bAssets[i]).balanceOf(_getBasketAddress());
+            sumBalance = sumBalance.add(bAssetBalances[i]);
+        }
     }
 
 
