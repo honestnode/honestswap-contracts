@@ -7,60 +7,62 @@ contract MockHonestSaving is IHonestSavings {
 
     using SafeMath for uint256;
 
-    mapping(address => uint256) private _savings;
-    mapping(address => uint256) private _shares;
+    mapping(address => uint256) private savings;
+    mapping(address => uint256) private shares;
 
-    uint256 private _totalSavings;
-    uint256 private _totalShares;
+    uint256 private totalSave;
+    uint256 private totalShare;
 
     function deposit(uint256 _amount) external returns (uint256) {
-        _savings[msg.sender] = _savings[msg.sender].add(_amount);
+        savings[msg.sender] = savings[msg.sender].add(_amount);
         uint256 newShares = _amount.mul(10);
-        _shares[msg.sender] = _shares[msg.sender].add(newShares);
-        _totalSavings = _totalSavings.add(_amount);
-        _totalShares = _totalShares.add(newShares);
+        shares[msg.sender] = shares[msg.sender].add(newShares);
+        totalSave = totalSave.add(_amount);
+        totalShare = totalShare.add(newShares);
 
         return newShares;
     }
 
-    function withdraw(uint256 _credits) external returns (uint256) {
-        _shares[msg.sender] = _shares[msg.sender].sub(_credits);
-        uint256 amount = _credits.div(10);
-        _savings[msg.sender] = _savings[msg.sender].sub(amount);
-        _totalSavings = _totalSavings.sub(amount);
-        _totalShares = _totalShares.sub(_credits);
+    function withdraw(uint256 _shares) external returns (uint256) {
+        shares[msg.sender] = shares[msg.sender].sub(_shares);
+        uint256 amount = _shares.div(10);
+        savings[msg.sender] = savings[msg.sender].sub(amount);
+        totalSave = totalSave.sub(amount);
+        totalShare = totalShare.sub(_shares);
 
         return amount;
     }
 
     function savingsOf(address _account) external view returns (uint256) {
-        return _savings[_account];
+        return savings[_account];
     }
 
     function sharesOf(address _account) external view returns (uint256) {
-        return _shares[_account];
+        return shares[_account];
     }
 
     function totalSavings() external view returns (uint256) {
-        return _totalSavings;
+        return totalSave;
     }
 
     function totalShares() public view returns (uint256) {
-        return _totalShares;
+        return totalShare;
     }
 
     function netValue() external view returns (uint256) {
-        return _totalSavings.mul(uint256(1e18)).div(_totalShares);
+        return totalSave.mul(uint256(1e18)).div(totalShare);
     }
 
     function apy() external view returns (uint256) {
         return 10;
     }
 
-    function swap(address _account, address[] calldata _bAssets, uint256[] calldata _borrows, uint256[] calldata _supplies) external {
+    function swap(address _account, address[] calldata _borrowBAssets, uint256[] calldata _borrows, address[] calldata _supplyBAssets, uint256[] calldata _supplies) external{
+
     }
 
-    function investments() external view returns (address[] memory, uint256[] memory) {
+
+    function investments() external view returns (address[] memory, uint256[] memory _amounts) {
         address[] memory _assets = new address[](1);
         _assets[0] = address(0);
         uint256[] memory _balances = new uint256[](1);
