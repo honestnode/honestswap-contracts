@@ -4,6 +4,7 @@ import {SafeMath} from '@openzeppelin/contracts/math/SafeMath.sol';
 import {ERC20Detailed} from '@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol';
 import {Address} from '@openzeppelin/contracts/utils/Address.sol';
 import {WhitelistedRole} from '@openzeppelin/contracts/access/roles/WhitelistedRole.sol';
+import {IHonestSavings} from '../interfaces/IHonestSavings.sol';
 import {IHonestBonus} from '../interfaces/IHonestBonus.sol';
 import {IAssetPriceIntegration} from '../integrations/IAssetPriceIntegration.sol';
 
@@ -12,7 +13,9 @@ contract HonestBonus is IHonestBonus, WhitelistedRole {
     using Address for address;
     using SafeMath for uint256;
 
+    address private _savings;
     address private _priceIntegration;
+
     mapping(address => uint256) _bonuses;
     uint256 _totalBonuses;
 
@@ -54,7 +57,6 @@ contract HonestBonus is IHonestBonus, WhitelistedRole {
 
     function addBonus(address _account, uint256 _bonus) external {
         require(_account != address(0), 'account must be valid');
-        require(_bonus > 0, 'bonus must greater than 0');
 
         _bonuses[_account] = _bonuses[_account].add(_bonus);
         _totalBonuses = _totalBonuses.add(_bonus);

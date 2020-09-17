@@ -102,11 +102,15 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         _totalSavings = _totalSavings.add(_amount);
 
         uint256 shares;
+        uint256 bonus = IHonestBonus(_bonus).bonusOf(_msgSender());
         if (totalShares() != 0) {
-            shares = _amount.mul(uint256(1e18)).div(sharePrice());
+            shares = _amount.add(bonus).mul(uint256(1e18)).div(sharePrice());
             _invest(_amount);
         } else {
-            shares = _invest(_amount);
+            shares = _invest(_amount).add(bonus);
+        }
+        if (bonus > 0) {
+            IHonestBonus(_bonus).subtractBonus(_msgSender(), bonus);
         }
 
         _shares[_msgSender()] = _shares[_msgSender()].add(shares);
@@ -118,21 +122,14 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
 
     function withdraw(uint256 _amount) external returns (uint256) {
         require(_amount > 0, "withdraw must be greater than 0");
-        require(_amount <= _savings[_msgSender()], "insufficient savings");
+        require(_amount <= savingsOf(_msgSender()), "insufficient savings");
 
-        uint256 credits = _amount.mul(sharesOf(_msgSender())).div(_savings[_msgSender()]);
-//        uint256 actualCredits = _adjustSharesWithBonus(credits);
+        uint256 credits = _amount.mul(sharesOf(_msgSender())).div(savingsOf(_msgSender()));
         uint256 price = sharePrice();
         uint256 amount = credits.mul(price).div(uint256(1e18));
 
-//        if (credits > _shares[_msgSender()]) {
-//            IHonestBonus(_bonus).subtractBonus(_msgSender(), credits.sub(_shares[_msgSender()]));
-//            _totalShares = _totalShares.sub(_shares[_msgSender()]);
-//            _shares[_msgSender()] = 0;
-//        } else {
-            _shares[_msgSender()] = _shares[_msgSender()].sub(credits);
-            _totalShares = _totalShares.sub(credits);
-//        }
+        _shares[_msgSender()] = _shares[_msgSender()].sub(credits);
+        _totalShares = _totalShares.sub(credits);
 
         _savings[_msgSender()] = _savings[_msgSender()].sub(_amount);
         _totalSavings = _totalSavings.sub(_amount);
@@ -147,27 +144,31 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         return amount;
     }
 
-    function savingsOf(address _account) external view returns (uint256) {
+    function savingsOf(address _account) public view returns (uint256) {
         require(_account != address(0), "address must be valid");
         return _savings[_account];
     }
 
     function sharesOf(address _account) public view returns (uint256) {
         require(_account != address(0), "address must be valid");
-        return _shares[_account].add(IHonestBonus(_bonus).bonusOf(_account));
+        return _shares[_account];
     }
 
-    function totalSavings() external view returns (uint256) {
+    function totalSavings() public view returns (uint256) {
         return _totalSavings;
     }
 
     function totalShares() public view returns (uint256) {
-        return _totalShares.add(IHonestBonus(_bonus).totalBonuses());
+        return _totalShares;
     }
 
     function sharePrice() public view returns (uint256) {
         uint256 pool = IInvestmentIntegration(_investmentIntegration).totalBalance().add(IHonestFee(_fee).totalFee());
-        return pool.mul(uint256(1e18)).div(totalShares());
+        uint256 total = totalShares();
+        if (total == 0) {
+            return 0;
+        }
+        return pool.mul(uint256(1e18)).div(total);
     }
 
     function apy() external view returns (uint256) {
@@ -188,7 +189,7 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
 
     function _takeSwapSupplies(address[] memory _sAssets, uint256[] memory _supplies) internal returns (uint256) {
         uint256 supplies;
-        for(uint256 i = 0; i < _sAssets.length; ++i) {
+        for (uint256 i = 0; i < _sAssets.length; ++i) {
             if (_supplies[i] == 0) {
                 continue;
             }
@@ -202,7 +203,7 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
 
     function _giveSwapBorrows(address _account, address[] memory _bAssets, uint256[] memory _borrows) internal returns (uint256) {
         uint256 borrows;
-        for(uint256 i = 0; i < _bAssets.length; ++i) {
+        for (uint256 i = 0; i < _bAssets.length; ++i) {
             if (_borrows[i] == 0) {
                 continue;
             }
