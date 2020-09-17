@@ -21,8 +21,8 @@ contract('HonestBasket', async (accounts) => {
     const feeRate = new BN(10).pow(new BN(15));
 
     const owner = accounts[0];
-    const investor1 = accounts[1];
-    const investor2 = accounts[2];
+    // const investor1 = accounts[1];
+    // const investor2 = accounts[2];
 
     let bAssetValidator;
     let hAsset;
@@ -80,20 +80,72 @@ contract('HonestBasket', async (accounts) => {
             expect(true).equal(usdtBalance > 0);
         });
 
-        it('getBAssetsBalance failed', async () => {
+        it('getBAssetsBalance suc', async () => {
             const array = await basket.getBAssetsBalance(bAssets);
-            console.log("array=" + array + ", sum=" + array[0] + ", other=" + array[1]);
+            console.log("array=" + array + ", array[0]=" + array[0] + ", array[1]=" + array[1]);
+            expect(true).equal(array[0] > 0);
+        });
+
+        it('getBasketAllBalance suc', async () => {
+            const array = await basket.getBasketAllBalance();
+            console.log("array=" + array + ", array[0]=" + array[0] + ", array[1]=" + array[1]);
             expect(true).equal(array[0] > 0);
         });
     });
 
-    describe('constructor', async () => {
-        it('illegal address', async () => {
-            await expectRevert.unspecified(
-                basket.initialize(owner, hAsset.address, bAssets, savings.address, fee.address, bAssetValidator.address)
-            )
-            ;
+    describe('get Basket info', async () => {
+        it('getBasket()', async () => {
+            const array = await basket.getBasket();
+            console.log("array=" + array + ", array[0]=" + array[0] + ", array[1]=" + array[1]);
+            expect(usdt.address).equal(array[0]);
         });
+
+        it('getBAssetStatus suc', async () => {
+            const array = await basket.getBAssetStatus(usdt.address);
+            console.log("array=" + array + ", array[0]=" + array[0] + ", array[1]=" + array[1]);
+            expect(true).equal(array[0]);
+        });
+
+        it('getBAssetsStatus suc', async () => {
+            const array = await basket.getBAssetsStatus(bAssets);
+            console.log("array=" + array + ", array[0]=" + array[0] + ", array[1]=" + array[1]);
+            expect(true).equal(array[0]);
+        });
+
+        it('addBAsset suc', async () => {
+            // function addBAsset(address _bAsset, uint8 _status) external returns (uint8 index);
+            const index = await basket.addBAsset(dai.address, 0);
+            console.log("index=" + index);
+            expect(true).equal(index >= 0);
+        });
+
+        it('updateBAssetStatus suc', async () => {
+            // function updateBAssetStatus(address _bAsset, uint8 _newStatus) external returns (uint8 index);
+            const index = await basket.updateBAssetStatus(dai.address, 1);
+            console.log("index=" + index);
+            expect(true).equal(index >= 0);
+        });
+
+
+    });
+
+    describe('user swap', async () => {
+        it('getSwapOutput suc', async () => {
+            // function getSwapOutput(address _input, address _output, uint256 _quantity)
+            // external returns (bool, string memory, uint256 outputQuantity);
+            const array = await basket.getSwapOutput(usdt.address, usdc.address, 10);
+            console.log("array=" + array + ", array[0]=" + array[0] + ", array[1]=" + array[1]);
+            expect(true).equal(array[0]);
+        });
+
+        it('swap suc', async () => {
+            // function swap(address _input, address _output, uint256 _quantity, address _recipient)
+            // external returns (uint256 outputQuantity);
+            const outputQuantity = await basket.swap(usdt.address, usdc.address, 10, accounts[1]);
+            console.log("outputQuantity=" + outputQuantity);
+            expect(true).equal(outputQuantity > 0);
+        });
+
     });
 
 });
