@@ -163,7 +163,7 @@ contract('YearnV2Integration', async (accounts) => {
 
       const balances = await integration.balances();
       console.log(balances[2].toString());
-      const balance = await integration.totalBalance(); // TODO: quite strange here always return 0
+      const balance = await integration.totalBalance();
       console.log(balance.toString());
     });
   });

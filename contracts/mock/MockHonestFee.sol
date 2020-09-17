@@ -40,9 +40,9 @@ contract MockHonestFee is IHonestFee {
         return IERC20(_hAsset).balanceOf(address(this));
     }
 
-    function reward(address _account, uint256 _percentage) external returns (uint256){
-        uint256 amount = _percentage.mul(totalFee()).div(uint256(1e18));
-        IERC20(_hAsset).safeTransfer(_account, amount);
-        return amount;
+    function reward(address _account, uint256 _amount) external returns (uint256) {
+        require(_amount <= totalFee(), 'insufficient fee');
+        IERC20(_hAsset).safeTransfer(_account, _amount);
+        return _amount;
     }
 }

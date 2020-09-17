@@ -100,14 +100,19 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         _savings[_msgSender()] = _savings[_msgSender()].add(_amount);
         _totalSavings = _totalSavings.add(_amount);
 
-        (uint256[] memory _, uint256 totalShares) = _invest(_amount);
+        uint256 shares;
+        if (totalShares() != 0) {
+            shares = _amount.mul(uint256(1e18)).div(sharePrice());
+            _invest(_amount);
+        } else {
+            shares = _invest(_amount);
+        }
 
-        _shares[_msgSender()] = _shares[_msgSender()].add(totalShares);
-        _totalShares = _totalShares.add(totalShares);
+        _shares[_msgSender()] = _shares[_msgSender()].add(shares);
+        _totalShares = _totalShares.add(shares);
 
-        emit SavingsDeposited(_msgSender(), _amount, totalShares);
-        return totalShares;
-
+        emit SavingsDeposited(_msgSender(), _amount, shares);
+        return shares;
     }
 
     function withdraw(uint256 _amount) external returns (uint256) {
@@ -115,22 +120,27 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         require(_amount <= _savings[_msgSender()], "insufficient savings");
 
         uint256 credits = _amount.mul(sharesOf(_msgSender())).div(_savings[_msgSender()]);
-        uint256 actualCredits = _adjustSharesWithBonus(credits);
-        IHonestFee(_fee).reward(_msgSender(), actualCredits.mul(uint256(1e18)).div(_totalShares));
+//        uint256 actualCredits = _adjustSharesWithBonus(credits);
+        uint256 price = sharePrice();
+        uint256 amount = credits.mul(price).div(uint256(1e18));
 
-        if (credits > _shares[_msgSender()]) {
-            IHonestBonus(_bonus).subtractBonus(_msgSender(), credits.sub(_shares[_msgSender()]));
-            _totalShares = _totalShares.sub(_shares[_msgSender()]);
-            _shares[_msgSender()] = 0;
-        } else {
+//        if (credits > _shares[_msgSender()]) {
+//            IHonestBonus(_bonus).subtractBonus(_msgSender(), credits.sub(_shares[_msgSender()]));
+//            _totalShares = _totalShares.sub(_shares[_msgSender()]);
+//            _shares[_msgSender()] = 0;
+//        } else {
             _shares[_msgSender()] = _shares[_msgSender()].sub(credits);
             _totalShares = _totalShares.sub(credits);
-        }
+//        }
 
         _savings[_msgSender()] = _savings[_msgSender()].sub(_amount);
         _totalSavings = _totalSavings.sub(_amount);
 
-        uint256 amount = _collect(_msgSender(), actualCredits, _amount);
+        uint256 remaining = _distributeFee(_msgSender(), amount);
+
+        if (remaining > 0) {
+            _collect(_msgSender(), remaining, _amount);
+        }
 
         emit SavingsRedeemed(_msgSender(), credits, amount);
         return amount;
@@ -154,8 +164,8 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         return _totalShares.add(IHonestBonus(_bonus).totalBonuses());
     }
 
-    function sharePrice() external view returns (uint256) {
-        return IInvestmentIntegration(_investmentIntegration).totalBalance().mul(uint256(1e18)).div(totalShares());
+    function sharePrice() public view returns (uint256) {
+        return _totalPool().mul(uint256(1e18)).div(totalShares());
     }
 
     function apy() external view returns (uint256) {
@@ -186,13 +196,11 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
     }
 
     function investments() external view returns (address[] memory, uint256[] memory) {
-        // TODO: refactor
         (address[] memory _assets, uint256[] memory _balances, uint256 _) = IInvestmentIntegration(_investmentIntegration).balances();
         return (_assets, _balances);
     }
 
     function investmentOf(address[] calldata _bAssets) external view returns (uint256[] memory) {
-        // TODO: refactor
         uint256[] memory amounts = new uint256[](_bAssets.length);
         for (uint256 i = 0; i < _bAssets.length; ++i) {
             amounts[i] = IInvestmentIntegration(_investmentIntegration).balanceOf(_bAssets[i]);
@@ -200,34 +208,36 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         return amounts;
     }
 
-    function _invest(uint256 _amount) internal returns (uint256[] memory, uint256) {
+    function _invest(uint256 _amount) internal returns (uint256) {
         IERC20(_hAsset).approve(_basket, _amount);
         address[] memory assets = IInvestmentIntegration(_investmentIntegration).assets();
         uint256[] memory amounts = IHonestBasket(_basket).swapBAssets(_investmentIntegration, _amount, assets);
 
-        uint256 length = assets.length;
-        uint256[] memory shares = new uint256[](length);
+//        uint256 length = assets.length;
+//        uint256[] memory shares = new uint256[](length);
         uint256 total;
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint256 i = 0; i < assets.length; ++i) {
             uint256 actualAmount = ERC20Detailed(assets[i]).resume(amounts[i]);
             IERC20(assets[i]).safeApprove(_investmentIntegration, actualAmount);
-            shares[i] = IInvestmentIntegration(_investmentIntegration).invest(assets[i], actualAmount);
-            total = total.add(shares[i]);
+//            shares[i] = IInvestmentIntegration(_investmentIntegration).invest(assets[i], actualAmount);
+            total = total.add(IInvestmentIntegration(_investmentIntegration).invest(assets[i], actualAmount));
         }
-        return (shares, total);
+        return total;
     }
 
-    function _collect(address _account, uint256 _credits, uint256 _amount) internal returns (uint256) {
-        (address[] memory bAssets, uint256[] memory balances, uint256 totalBalance) =
+    function _collect(address _account, uint256 _expected, uint256 _amount) internal returns (uint256) {
+        (address[] memory bAssets, uint256[] memory balances, uint256 totalBalance, uint256 price) =
         IInvestmentIntegration(_investmentIntegration).shares();
         require(totalBalance > 0, 'unexpected total balance');
+
+        uint256 credits = _expected.mul(uint256(1e18)).div(price);
 
         uint256[] memory amounts = new uint256[](bAssets.length);
         uint256 totalAmount;
         // because of the percentage calculation, the shares may be gap from actual balances
         uint256 gap;
         for (uint256 i = 0; i < bAssets.length; ++i) {
-            uint256 shares = _credits.mul(balances[i]).div(totalBalance);
+            uint256 shares = credits.mul(balances[i]).div(totalBalance);
             if (shares == 0) {
                 continue;
             }
@@ -246,7 +256,7 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
             amounts[i] = ERC20Detailed(bAssets[i]).resume(amounts[i]);
             IERC20(bAssets[i]).safeApprove(_basket, amounts[i]);
         }
-        require(gap == 0, 'failed in gap share');
+        //require(gap == 0, 'failed in gap share');
         if (totalAmount > _amount) {
             IHonestBasket(_basket).distributeHAssets(_account, bAssets, amounts, totalAmount.sub(_amount));
         } else {
@@ -255,11 +265,27 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         return totalAmount;
     }
 
+    function _totalPool() internal view returns (uint256) {
+        return IInvestmentIntegration(_investmentIntegration).totalBalance().add(IHonestFee(_fee).totalFee());
+    }
+
     function _adjustSharesWithBonus(uint256 _value) internal view returns (uint256) {
         uint256 total = totalShares();
         if (total == 0) {
             return 0;
         }
         return _value.mul(_totalShares).div(total);
+    }
+
+    function _distributeFee(address _account, uint256 _amount) internal returns (uint256) {
+        require(_amount > 0, 'amount must greater than 0');
+        uint256 totalFee = IHonestFee(_fee).totalFee();
+        if (_amount > totalFee) {
+            IHonestFee(_fee).reward(_account, totalFee);
+            return _amount.sub(totalFee);
+        } else {
+            IHonestFee(_fee).reward(_account, _amount);
+            return 0;
+        }
     }
 }
