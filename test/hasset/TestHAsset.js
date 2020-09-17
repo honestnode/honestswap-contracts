@@ -11,7 +11,6 @@ const MockHonestBasket = artifacts.require('MockHonestBasket');
 const MockHonestSaving = artifacts.require('MockHonestSaving');
 const MockHonestBonus = artifacts.require('MockHonestBonus');
 const MockHonestFee = artifacts.require('MockHonestFee');
-const MockBAssetPrice = artifacts.require('MockBAssetPrice');
 
 contract('HAsset', async (accounts) => {
 
@@ -27,7 +26,6 @@ contract('HAsset', async (accounts) => {
     let basket;
     let savings;
     let fee;
-    let price;
     let bonus;
     let usdt;
     let usdc;
@@ -49,7 +47,6 @@ contract('HAsset', async (accounts) => {
         savings = await MockHonestSaving.new();
         bonus = await MockHonestBonus.new();
         fee = await MockHonestFee.new();
-        price = await MockBAssetPrice.new();
 
         basket = await MockHonestBasket.new();
 
@@ -69,12 +66,11 @@ contract('HAsset', async (accounts) => {
                 //         address _nexus,
                 //         address _honestBasketInterface,
                 //         address _honestSavingsInterface,
-                //         address _bAssetPriceInterface,
                 //         address _honestBonusInterface,
                 //         address _honestFeeInterface,
                 //         address _bAssetValidator
                 // )
-                hAsset.initialize('honest USD', 'hUSD', owner, basket.address, savings.address, price.address, bonus.address, fee.address, bAssetValidator.address)
+                hAsset.initialize('honest USD', 'hUSD', owner, basket.address, savings.address, bonus.address, fee.address, bAssetValidator.address)
             );
         });
     });

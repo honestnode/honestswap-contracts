@@ -1,5 +1,5 @@
 const Nexus = artifacts.require('Nexus');
-const ChainLinkBAssetPrice = artifacts.require('ChainLinkBAssetPrice');
+const ChainlinkIntegration = artifacts.require('ChainlinkIntegration');
 const YearnV2Integration = artifacts.require('YearnV2Integration');
 const HonestBonus = artifacts.require('HonestBonus');
 const HonestFee = artifacts.require('HonestFee');
@@ -23,7 +23,7 @@ module.exports = function (deployer) {
     await deployer.deploy(HonestBasket);
 
     const nexus = await Nexus.deployed();
-    const chainLink = await ChainLinkBAssetPrice.deployed();
+    const chainLink = await ChainlinkIntegration.deployed();
     const yearn = await YearnV2Integration.deployed();
     const hAsset = await HAsset.deployed();
     const basket = await HonestBasket.deployed();
