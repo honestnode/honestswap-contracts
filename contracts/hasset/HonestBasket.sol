@@ -86,9 +86,9 @@ InitializableReentrancyGuard {
         _;
     }
 
-    function getBalance(address _bAsset) external view returns (uint256 balance){
-        return _getBalance(_bAsset);
-    }
+    //    function getBalance(address _bAsset) external view returns (uint256 balance){
+    //        return _getBalance(_bAsset);
+    //    }
 
     function _getBalance(address _bAsset) internal view returns (uint256 balance){
         require(_bAsset != address(0), "bAsset address must be valid");
@@ -109,6 +109,12 @@ InitializableReentrancyGuard {
     function getBAssetsBalance(address[] calldata _bAssets)
     external view
     returns (uint256 sumBalance, uint256[] memory balances){
+        return _getBAssetsBalance(_bAssets);
+    }
+
+    function _getBAssetsBalance(address[] memory _bAssets)
+    internal view
+    returns (uint256 sumBalance, uint256[] memory balances){
         require(_bAssets.length > 0, "bAsset address must be valid");
 
         sumBalance = 0;
@@ -127,18 +133,7 @@ InitializableReentrancyGuard {
 
     function getBasketAllBalance() external view returns (uint256 sumBalance, address[] memory allBAssets, uint256[] memory balances){
         allBAssets = bAssets;
-        sumBalance = 0;
-        uint256[] memory bAssetBalances = honestSavingsInterface.investmentOf(bAssets);
-        for (uint256 i = 0; i < bAssets.length; i++) {
-            (bool exist, uint8 index) = _isAssetInBasket(bAssets[i]);
-
-            if (exist) {
-                uint256 poolBalance = IERC20(bAssets[i]).balanceOf(address(this));
-                bAssetBalances[i] = bAssetBalances[i].add(poolBalance);
-                sumBalance = sumBalance.add(bAssetBalances[i]);
-            }
-        }
-        balances = bAssetBalances;
+        (sumBalance, balances) = _getBAssetsBalance(allBAssets);
     }
 
     /** @dev Basket all bAsset info */
@@ -240,7 +235,6 @@ InitializableReentrancyGuard {
         HAssetHelpers.transferTokens(msg.sender, address(this), _input, false, _quantity);
 
         // check output bAsset balance
-        //        uint256 outputBAssetBalance = _getBalance(_output);
         require(_quantity <= _getBalance(_output), "Not enough swap out bAsset");
 
         // Deduct the swap fee, if any
@@ -286,11 +280,7 @@ InitializableReentrancyGuard {
      * @return reason       If swap is invalid, this is the reason
      * @return outputQuantity       Units of _output asset the trade would return
      */
-    function getSwapOutput(
-        address _input,
-        address _output,
-        uint256 _quantity
-    )
+    function getSwapOutput(address _input, address _output, uint256 _quantity)
     external
     returns (bool, string memory, uint256 outputQuantity)
     {
@@ -309,13 +299,6 @@ InitializableReentrancyGuard {
         require(bAssetExist, "BAsset not exist in the Basket!");
 
         // 2. check if trade is valid
-        //        if (isMint) {
-        //            // Validate mint
-        //            (bool isValid, string memory reason) = bAssetValidator.validateMint(_input, statuses[0], _quantity);
-        //            if (!isValid) return (false, reason, 0);
-        //            return (true, "", _quantity);
-        //        }
-        // 2.2. If a bAsset swap, calculate the validity, output and fee
         (bool swapValid, string memory reason) = bAssetValidator.validateSwap(_input, statuses[0], _output, statuses[1], _quantity);
         if (!swapValid) {
             return (false, reason, 0);
@@ -334,12 +317,11 @@ InitializableReentrancyGuard {
     /** @dev Setters for Gov to update Basket composition */
     function addBAsset(address _bAsset, uint8 _status)
     external
+    managerOrGovernor
     nonReentrant
-        //    onlyGovernor
     returns (uint8 index){
         index = _addBasset(_bAsset, _status);
     }
-
 
     function _addBasset(address _bAsset, uint8 _status)
     internal
@@ -353,7 +335,6 @@ InitializableReentrancyGuard {
         uint8 numberOfBassetsInBasket = uint8(bAssets.length);
         require(numberOfBassetsInBasket < maxBassets, "Max bAssets in Basket");
 
-        //        bAssets[numberOfBassetsInBasket] = _bAsset;
         bAssets.push(_bAsset);
         bAssetStatus.push(_status);
         bAssetStatusMap[_bAsset] = _status;

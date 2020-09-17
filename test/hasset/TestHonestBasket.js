@@ -74,11 +74,11 @@ contract('HonestBasket', async (accounts) => {
 
     describe('query balance', async () => {
         // function validateMint(address _bAsset, uint8 _bAssetStatus, uint256 _bAssetQuantity)
-        it('getBalance suc', async () => {
-            const usdtBalance = await basket.getBalance(usdt.address);
-            console.log("usdtBalance=" + usdtBalance);
-            expect(true).equal(usdtBalance > 0);
-        });
+        // it('getBalance suc', async () => {
+        //     const usdtBalance = await basket.getBalance(usdt.address);
+        //     console.log("usdtBalance=" + usdtBalance);
+        //     expect(true).equal(usdtBalance > 0);
+        // });
 
         it('getBAssetsBalance suc', async () => {
             const array = await basket.getBAssetsBalance(bAssets);
