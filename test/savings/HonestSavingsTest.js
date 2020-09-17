@@ -66,29 +66,29 @@ contract('HonestSavings', async (accounts) => {
     await createContract();
   });
 
-  describe('deposit', async () => {
-
-    it('deposit zero', async () => {
-      await expectRevert.unspecified( // zero amount
-        savings.deposit(zero, {from: investor1})
-      );
-    });
-
-    it('insufficient balance', async () => {
-      await hAsset.mint(investor2, hundred);
-      await hAsset.approve(savings.address, twoHundred, {from: investor2});
-      await expectRevert.unspecified( // insufficient balance
-        savings.deposit(twoHundred, {from: investor2})
-      );
-    });
-
-    it('no approve', async () => {
-      await hAsset.mint(investor1, hundred);
-      await expectRevert.unspecified( // no approve
-        savings.deposit(hundred, {from: investor1})
-      );
-    });
-  });
+  // describe('deposit', async () => {
+  //
+  //   it('deposit zero', async () => {
+  //     await expectRevert.unspecified( // zero amount
+  //       savings.deposit(zero, {from: investor1})
+  //     );
+  //   });
+  //
+  //   it('insufficient balance', async () => {
+  //     await hAsset.mint(investor2, hundred);
+  //     await hAsset.approve(savings.address, twoHundred, {from: investor2});
+  //     await expectRevert.unspecified( // insufficient balance
+  //       savings.deposit(twoHundred, {from: investor2})
+  //     );
+  //   });
+  //
+  //   it('no approve', async () => {
+  //     await hAsset.mint(investor1, hundred);
+  //     await expectRevert.unspecified( // no approve
+  //       savings.deposit(hundred, {from: investor1})
+  //     );
+  //   });
+  // });
 
   describe('deposit and withdraw', async () => {
 
@@ -97,11 +97,15 @@ contract('HonestSavings', async (accounts) => {
       const shares = await savings.sharesOf(investor);
       const saving = await savings.savingsOf(investor);
       const totalShares = await savings.totalShares();
+      const investment = await yearn.totalBalance();
+      const fees = await fee.totalFee();
       console.log('------ statements');
       console.log('investor hAsset balance: ', balance.toString());
       console.log('investor savings: ', saving.toString());
       console.log('investor share: ', shares.toString());
-      console.log('total shares: ', totalShares.toString());
+      console.log('savings total shares: ', totalShares.toString());
+      console.log('investment total balances: ', investment.toString());
+      console.log('fee balances: ', fees.toString());
       console.log('------');
     };
 
@@ -128,27 +132,28 @@ contract('HonestSavings', async (accounts) => {
       await printStatement(investor);
     };
 
-    it('deposit and withdraw without fee and bonus', async () => {
-      await deposit100(investor1);
-    });
+    // it('deposit and withdraw without fee and bonus', async () => {
+    //   await deposit100(investor1);
+    // });
 
     it('deposit and withdraw without bonus', async () => {
       // assume the fee have 200 hAssets
-      hAsset.mint(fee.address, shift(200));
       await deposit100(investor1);
+      hAsset.mint(fee.address, shift(100));
       await deposit100(investor2);
+      hAsset.mint(fee.address, shift(100));
       await withdraw100(investor1);
       await withdraw100(investor2);
     });
 
-    it('deposit and withdraw', async () => {
-      // assume the fee have 200 hAssets and investor1 has 200e18 bonus
-      hAsset.mint(fee.address, shift(200));
-      bonus.addBonus(investor1, shift(200));
-      await deposit100(investor1);
-      await deposit100(investor2);
-      await withdraw100(investor1);
-      await withdraw100(investor2);
-    });
+    // it('deposit and withdraw', async () => {
+    //   // assume the fee have 200 hAssets and investor1 has 200e18 bonus
+    //   hAsset.mint(fee.address, shift(200));
+    //   bonus.addBonus(investor1, shift(200));
+    //   await deposit100(investor1);
+    //   await deposit100(investor2);
+    //   await withdraw100(investor1);
+    //   await withdraw100(investor2);
+    // });
   });
 });

@@ -98,14 +98,16 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         return ERC20Detailed(_contractOf(_bAsset)).standardBalanceOf(address(this));
     }
 
-    function shares() external view returns (address[] memory, uint256[] memory, uint256) {
+    function shares() external view returns (address[] memory, uint256[] memory, uint256, uint256) {
         uint256[] memory shares = new uint256[](_assets.length());
         uint256 totalShare;
+        uint256 totalBalance;
         for (uint256 i = 0; i < _assets.length(); ++i) {
             shares[i] = shareOf(_assets.get(i));
             totalShare = totalShare.add(shares[i]);
+            totalBalance = totalBalance.add(_balanceOf(_assets.get(i)));
         }
-        return (_assets.enumerate(), shares, totalShare);
+        return (_assets.enumerate(), shares, totalShare, totalBalance.mul(uint256(1e18)).div(totalShare));
     }
 
     function balanceOf(address _asset) external view returns (uint256) {
@@ -123,11 +125,9 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
     }
 
     function totalBalance() external view returns (uint256) {
-        uint256 length = _assets.length();
         uint256 balance;
-
-        for (uint256 i = 0; i < length; ++i) {
-            balance.add(_balanceOf(_assets.get(i)));
+        for (uint256 i = 0; i < _assets.length(); ++i) {
+            balance = balance.add(_balanceOf(_assets.get(i)));
         }
         return balance;
     }
@@ -141,11 +141,10 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
     function _balanceOf(address _asset) internal view returns (uint256) {
         address yToken = _contractOf(_asset);
 
-        uint256 shares = IERC20(yToken).balanceOf(address(this));
+        uint256 shares = ERC20Detailed(yToken).standardBalanceOf(address(this));
         if (shares == 0) {
             return 0;
         }
-        uint256 amount = yTokenV2(yToken).getPricePerFullShare().mul(shares).div(uint256(1e18));
-        return ERC20Detailed(yToken).standardize(amount);
+        return yTokenV2(yToken).getPricePerFullShare().mul(shares).div(uint256(1e18));
     }
 }

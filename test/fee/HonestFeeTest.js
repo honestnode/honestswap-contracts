@@ -94,10 +94,10 @@ contract('HonestFee', async (accounts) => {
       const total = await hAsset.balanceOf(fee.address);
 
       // 20% percentage rewards
-      await fee.reward(dummy1, percentage(20));
+      await fee.reward(dummy1, full(20));
 
-      expect(total.mul(percentage(20)).div(full(1)).toString('hex')).equal((await hAsset.balanceOf(dummy1)).toString('hex'));
-      expect(total.mul(percentage(80)).div(full(1)).toString('hex')).equal((await hAsset.balanceOf(fee.address)).toString('hex'));
+      expect(full(20).toString('hex')).equal((await hAsset.balanceOf(dummy1)).toString('hex'));
+      expect(full(80).toString('hex')).equal((await hAsset.balanceOf(fee.address)).toString('hex'));
     });
   });
 });
