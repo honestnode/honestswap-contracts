@@ -1,9 +1,15 @@
 const BN = require('bn.js');
 const {expectRevert} = require('@openzeppelin/test-helpers');
+const MockUSDT = artifacts.require('MockUSDT');
+const MockUSDC = artifacts.require('MockUSDC');
+const MockTUSD = artifacts.require('MockTUSD');
+const MockDAI = artifacts.require('MockDAI');
+const BAssetValidatorArtifact = artifacts.require('BAssetValidator');
 const MockHAsset = artifacts.require('MockHAsset');
 const HonestBasket = artifacts.require('HonestBasket');
 const MockHonestSaving = artifacts.require('MockHonestSaving');
 const MockHonestFee = artifacts.require('MockHonestFee');
+
 
 contract('HonestBasket', async (accounts) => {
 
@@ -15,19 +21,34 @@ contract('HonestBasket', async (accounts) => {
     const feeRate = new BN(10).pow(new BN(15));
 
     const owner = accounts[0];
-    const investor1 = accounts[1];
-    const investor2 = accounts[2];
+    // const investor1 = accounts[1];
+    // const investor2 = accounts[2];
 
+    let bAssetValidator;
     let hAsset;
     let basket;
     let savings;
     let fee;
+    let usdt;
+    let usdc;
+    let tusd;
+    let dai;
+
+    let bAssets;
 
     const createContract = async () => {
+        bAssetValidator = await BAssetValidatorArtifact.new();
+        usdt = await MockUSDT.new();
+        usdc = await MockUSDC.new();
+        tusd = await MockTUSD.new();
+        dai = await MockDAI.new();
+
         hAsset = await MockHAsset.new();
         savings = await MockHonestSaving.new();
         fee = await MockHonestFee.new();
         basket = await HonestBasket.new();
+
+        bAssets = [usdt.address, usdc.address, tusd.address, dai.address];
     };
 
     before(async () => {
@@ -45,48 +66,86 @@ contract('HonestBasket', async (accounts) => {
     describe('constructor', async () => {
         it('illegal address', async () => {
             await expectRevert.unspecified(
-                HonestSavings.new('0x0000000000000000000000000000000000000000')
-            );
+                basket.initialize(owner, hAsset.address, bAssets, savings.address, fee.address, bAssetValidator.address)
+            )
+            ;
         });
     });
 
-    describe('deposit', async () => {
-
-        it('deposit zero', async () => {
-            await expectRevert.unspecified( // zero amount
-                savings.deposit(zero, {from: investor1})
-            );
+    describe('query balance', async () => {
+        // function validateMint(address _bAsset, uint8 _bAssetStatus, uint256 _bAssetQuantity)
+        it('getBalance suc', async () => {
+            const usdtBalance = await basket.getBalance(usdt.address);
+            console.log("usdtBalance=" + usdtBalance);
+            expect(true).equal(usdtBalance > 0);
         });
 
-        it('insufficient balance', async () => {
-            await hAsset.mint(investor2, hundred);
-            await hAsset.approve(savings.address, twoHundred, {from: investor2});
-            await expectRevert.unspecified( // insufficient balance
-                savings.deposit(twoHundred, {from: investor2})
-            );
+        it('getBAssetsBalance suc', async () => {
+            const array = await basket.getBAssetsBalance(bAssets);
+            console.log("array=" + array + ", array[0]=" + array[0] + ", array[1]=" + array[1]);
+            expect(true).equal(array[0] > 0);
         });
 
-        it('no approve', async () => {
-            await hAsset.mint(investor1, hundred);
-            await expectRevert.unspecified( // no approve
-                savings.deposit(hundred, {from: investor1})
-            );
-        });
-
-        it('deposit and withdraw', async () => {
-            const balance = await hAsset.balanceOf(investor1);
-            await hAsset.mint(investor1, hundred);
-            await hAsset.approve(savings.address, hundred, {from: investor1});
-
-            await savings.deposit(hundred, {from: investor1});
-
-            expect(hundred.toString('hex')).equal((await savings.savingsOf(investor1)).toString('hex'));
-            expect(balance.add(zero).toString('hex')).equal((await hAsset.balanceOf(investor1)).toString('hex'));
-
-            await savings.withdraw(hundred, {from: investor1});
-
-            expect(zero.toString('hex')).equal((await savings.savingsOf(investor1)).toString('hex'));
-            expect(balance.add(hundred).toString('hex')).equal((await hAsset.balanceOf(investor1)).toString('hex'));
+        it('getBasketAllBalance suc', async () => {
+            const array = await basket.getBasketAllBalance();
+            console.log("array=" + array + ", array[0]=" + array[0] + ", array[1]=" + array[1]);
+            expect(true).equal(array[0] > 0);
         });
     });
+
+    describe('get Basket info', async () => {
+        it('getBasket()', async () => {
+            const array = await basket.getBasket();
+            console.log("array=" + array + ", array[0]=" + array[0] + ", array[1]=" + array[1]);
+            expect(usdt.address).equal(array[0]);
+        });
+
+        it('getBAssetStatus suc', async () => {
+            const array = await basket.getBAssetStatus(usdt.address);
+            console.log("array=" + array + ", array[0]=" + array[0] + ", array[1]=" + array[1]);
+            expect(true).equal(array[0]);
+        });
+
+        it('getBAssetsStatus suc', async () => {
+            const array = await basket.getBAssetsStatus(bAssets);
+            console.log("array=" + array + ", array[0]=" + array[0] + ", array[1]=" + array[1]);
+            expect(true).equal(array[0]);
+        });
+
+        it('addBAsset suc', async () => {
+            // function addBAsset(address _bAsset, uint8 _status) external returns (uint8 index);
+            const index = await basket.addBAsset(dai.address, 0);
+            console.log("index=" + index);
+            expect(true).equal(index >= 0);
+        });
+
+        it('updateBAssetStatus suc', async () => {
+            // function updateBAssetStatus(address _bAsset, uint8 _newStatus) external returns (uint8 index);
+            const index = await basket.updateBAssetStatus(dai.address, 1);
+            console.log("index=" + index);
+            expect(true).equal(index >= 0);
+        });
+
+
+    });
+
+    describe('user swap', async () => {
+        it('getSwapOutput suc', async () => {
+            // function getSwapOutput(address _input, address _output, uint256 _quantity)
+            // external returns (bool, string memory, uint256 outputQuantity);
+            const array = await basket.getSwapOutput(usdt.address, usdc.address, 10);
+            console.log("array=" + array + ", array[0]=" + array[0] + ", array[1]=" + array[1]);
+            expect(true).equal(array[0]);
+        });
+
+        it('swap suc', async () => {
+            // function swap(address _input, address _output, uint256 _quantity, address _recipient)
+            // external returns (uint256 outputQuantity);
+            const outputQuantity = await basket.swap(usdt.address, usdc.address, 10, accounts[1]);
+            console.log("outputQuantity=" + outputQuantity);
+            expect(true).equal(outputQuantity > 0);
+        });
+
+    });
+
 });

@@ -174,26 +174,23 @@ InitializableReentrancyGuard {
         require(mintValid, reason);
 
         // transfer bAsset to basket
-        uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, getBasketAddress(), _bAsset, false, _bAssetQuantity);
+        uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, _getBasketAddress(), _bAsset, false, _bAssetQuantity);
         // calc weight
         // query usd price for bAsset
         (uint256 bAssetPrice, uint256 bAssetPriceDecimals) = bAssetPriceInterface.getBAssetPrice(_bAsset);
         uint256 redeemFeeRate = honestFeeInterface.redeemFeeRate();
         if (bAssetPrice > 0 && bAssetPriceDecimals > 0) {
             uint256 priceScale = 10 ** bAssetPriceDecimals;
-            if (bAssetPrice > priceScale) {
-                uint256 bonusWeightFactor = bAssetPrice.sub(priceScale);
-                if (bonusWeightFactor > 0) {
-                    uint256 feeFactor = redeemFeeRate.mulTruncate(priceScale);
-                    bonusWeightFactor = bonusWeightFactor.sub(feeFactor);
-                    if (bonusWeightFactor > 0) {
-                        uint256 bonusWeight = bonusWeightFactor.mulTruncateScale(quantityTransferred, priceScale);
-                        if (bonusWeight > 0) {
-                            // add bonus weight
-                            honestBonusInterface.addBonus(_recipient, bonusWeight);
-                        }
-                    }
-                }
+            if (bAssetPrice > priceScale.add(redeemFeeRate.mulTruncate(priceScale))) {
+                //                uint256 bonusWeightFactor = bAssetPrice.sub(priceScale.add(redeemFeeRate.mulTruncate(priceScale)));
+                //                uint256 feeFactor = redeemFeeRate.mulTruncate(priceScale);
+                //                bonusWeightFactor = bonusWeightFactor.sub(feeFactor);
+                //                uint256 bonusWeight = bonusWeightFactor.mulTruncateScale(quantityTransferred, priceScale);
+                //                if (bonusWeight > 0) {
+                // add bonus weight
+                //                honestBonusInterface.addBonus(_recipient, bonusWeightFactor.mulTruncateScale(quantityTransferred, priceScale));
+                honestBonusInterface.addBonus(_recipient, bAssetPrice.sub(priceScale.add(redeemFeeRate.mulTruncate(priceScale))).mulTruncateScale(quantityTransferred, priceScale));
+                //                }
             }
         }
 
@@ -207,11 +204,11 @@ InitializableReentrancyGuard {
     /** @dev Mint Multi */
     function _mintTo(address[] memory _bAssets, uint256[] memory _bAssetQuantities, address _recipient)
     internal
-    returns (uint256 hAssetMinted)
+    returns (uint256 hAssetQuantity)
     {
         require(_recipient != address(0), "Must be a valid recipient");
-        uint256 len = _bAssetQuantities.length;
-        require(len > 0 && len == _bAssets.length, "Input array mismatch");
+        //        uint256 len = _bAssetQuantities.length;
+        require(_bAssetQuantities.length > 0 && _bAssetQuantities.length == _bAssets.length, "Input array mismatch");
 
         (bool bAssetExist, uint8[] memory statuses) = honestBasketInterface.getBAssetsStatus(_bAssets);
         require(bAssetExist, "bAsset not exist in the Basket!");
@@ -220,56 +217,57 @@ InitializableReentrancyGuard {
         (bool mintValid, string memory reason) = bAssetValidator.validateMintMulti(_bAssets, statuses, _bAssetQuantities);
         require(mintValid, reason);
 
-        uint256 hAssetQuantity = 0;
-        uint256[] memory receivedQtyArray = new uint256[](len);
-
-        uint256 totalBonusWeight = 0;
-        (uint256[] memory prices, uint256[] memory decimals) = bAssetPriceInterface.getBAssetsPrice(_bAssets);
-        require(len == prices.length, "bAsset price array count mismatch");
-        uint256 redeemFeeRate = honestFeeInterface.redeemFeeRate();
-        for (uint256 i = 0; i < len; i++) {
-            uint256 bAssetQuantity = _bAssetQuantities[i];
-            address bAssetAddress = _bAssets[i];
-            if (bAssetQuantity > 0) {
+        uint256[] memory quantityTransferred = new  uint256[](_bAssetQuantities.length);
+        for (uint256 i = 0; i < _bAssetQuantities.length; i++) {
+            if (_bAssetQuantities[i] > 0) {
                 // transfer bAsset to basket
-                uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, getBasketAddress(), bAssetAddress, false, bAssetQuantity);
-
-                receivedQtyArray[i] = quantityTransferred;
-                hAssetQuantity = hAssetQuantity.add(quantityTransferred);
-
-                // query usd price for bAsset
-                uint256 bAssetPrice = prices[i];
-                uint256 bAssetPriceDecimals = decimals[i];
-                if (bAssetPrice > 0 && bAssetPriceDecimals > 0) {
-                    uint256 priceScale = 10 ** bAssetPriceDecimals;
-                    if (bAssetPrice > priceScale) {
-                        uint256 bonusWeightFactor = bAssetPrice.sub(priceScale);
-                        if (bonusWeightFactor > 0) {
-                            uint256 feeFactor = redeemFeeRate.mulTruncate(priceScale);
-                            bonusWeightFactor = bonusWeightFactor.sub(feeFactor);
-                            if (bonusWeightFactor > 0) {
-                                uint256 bonusWeight = bonusWeightFactor.mulTruncateScale(quantityTransferred, priceScale);
-                                if (bonusWeight > 0) {
-                                    totalBonusWeight.add(bonusWeight);
-                                }
-                            }
-                        }
-                    }
-                }
+                quantityTransferred[i] = HAssetHelpers.transferTokens(msg.sender, _getBasketAddress(), _bAssets[i], false, _bAssetQuantities[i]);
+                hAssetQuantity = hAssetQuantity.add(quantityTransferred[i]);
             }
         }
         require(hAssetQuantity > 0, "No hAsset quantity to mint");
-
-        // add bonus weight
-        if (totalBonusWeight > 0) {
-            honestBonusInterface.addBonus(_recipient, totalBonusWeight);
-        }
 
         // Mint the HAsset
         _mint(_recipient, hAssetQuantity);
         emit MintedMulti(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);
 
+        _addMintBonus(_bAssets, quantityTransferred, _recipient);
+
         return hAssetQuantity;
+    }
+
+    function _addMintBonus(address[] memory _bAssets, uint256[] memory _bAssetQuantities, address _recipient) internal {
+        require(_recipient != address(0), "Must be a valid recipient");
+        require(_bAssetQuantities.length > 0 && _bAssetQuantities.length == _bAssets.length, "Input array mismatch");
+        // query latest bAsset price
+        (uint256[] memory prices, uint256[] memory decimals) = bAssetPriceInterface.getBAssetsPrice(_bAssets);
+        require(_bAssets.length == prices.length, "bAsset price array count mismatch");
+        uint256 redeemFeeRate = honestFeeInterface.redeemFeeRate();
+        uint256 priceScale = 1;
+        uint256 totalBonusWeight = 0;
+        for (uint256 i = 0; i < _bAssets.length; i++) {
+            if (_bAssetQuantities[i] > 0 && prices[i] > 0 && decimals[i] > 0) {
+                if (decimals[i] < 18) {
+                    priceScale = 10 ** (18 - decimals[i]);
+                }
+                if (prices[i].mulTruncate(priceScale) > (HonestMath.getFullScale().add(redeemFeeRate))) {// scale to 1e18
+                    //                        uint256 bonusWeightFactor = prices[i].sub(priceScale).sub(redeemFeeRate.mulTruncate(priceScale));
+                    //                        if (bonusWeightFactor > 0) {
+                    //                            bonusWeightFactor = bonusWeightFactor.sub(redeemFeeRate.mulTruncate(priceScale));
+                    //                        if (bonusWeightFactor > 0) {
+                    //                        totalBonusWeight.add(bonusWeightFactor.mulTruncateScale(quantityTransferred, priceScale));
+                    totalBonusWeight.add((prices[i].mulTruncate(priceScale).sub(HonestMath.getFullScale().add(redeemFeeRate))).mulTruncate(_bAssetQuantities[i]));
+                    //                    totalBonusWeight.add(prices[i].sub(priceScale).sub(redeemFeeRate.mulTruncate(priceScale)).mulTruncateScale(quantityTransferred, priceScale));
+                    //                        }
+                    //                        }
+                }
+            }
+        }
+
+        // add bonus weight
+        if (totalBonusWeight > 0) {
+            honestBonusInterface.addBonus(_recipient, totalBonusWeight);
+        }
     }
 
     /***************************************
@@ -378,13 +376,13 @@ InitializableReentrancyGuard {
         address[] memory bAssets = bAssetValidator.filterValidBAsset(allBAssets, statuses);
 
         require(bAssets.length > 0, "No valid bAssets");
-        uint len = bAssets.length;
+//        uint len = bAssets.length;
         (uint256 sumBalance, uint256[] memory bAssetBalances) = honestBasketInterface.getBAssetsBalance(bAssets);
         require(bAssets.length == bAssetBalances.length, "Query bAsset balance failed");
         // calc bAssets quantity in Proportion
 
-        uint256[] memory bAssetQuantities = new uint256[](len);
-        for (uint256 i = 0; i < len; i++) {
+        uint256[] memory bAssetQuantities = new uint256[](bAssets.length);
+        for (uint256 i = 0; i < bAssets.length; i++) {
             uint256 quantity = _bAssetQuantity.mul(bAssetBalances[i]);
             bAssetQuantities[i] = quantity.div(sumBalance);
         }
@@ -429,75 +427,97 @@ InitializableReentrancyGuard {
         bool _inProportion
     )
     internal
-    returns (uint256 hAssetRedeemed)
+    returns (uint256 hAssetQuantity)
     {
-        // Calc total redeemed hAsset quantity
-        uint256 hAssetQuantity = 0;
         // Redemption fee
         uint256 feeRate = 0;
         if (!_inProportion) {
             feeRate = honestFeeInterface.redeemFeeRate();
         }
-        uint len = _bAssetQuantities.length;
-        for (uint256 i = 0; i < len; i++) {
-            // check every target bAsset quantity
+        uint256 totalFee = 0;
+        for (uint256 i = 0; i < _bAssetQuantities.length; i++) {
             require(_bAssetQuantities[i] <= _bAssetBalances[i], "Cannot redeem more bAsset than balance");
             hAssetQuantity = hAssetQuantity.add(_bAssetQuantities[i]);
+            if (feeRate > 0) {
+                totalFee.add(_bAssetQuantities[i].mulTruncate(feeRate));
+
+                emit PaidFee(msg.sender, _bAssets[i], _bAssetQuantities[i].mulTruncate(feeRate));
+            }
         }
         require(hAssetQuantity > 0, "Must redeem some bAssets");
 
         // Apply fees, burn hAsset and return bAsset to recipient
         _burn(msg.sender, hAssetQuantity);
 
-        uint256 totalFee = 0;
+        if (totalFee > 0) {
+            // handle fee
+            // trans hAsset fee to fee contract
+            //            uint256 feeTransferred =
+            HAssetHelpers.transferTokens(_getBasketAddress(), address(honestFeeInterface), address(this), false, totalFee);
+        }
+
+
+        emit Redeemed(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);
+        return hAssetQuantity;
+    }
+
+    function _redeemFromBasket(address[] memory _bAssets, uint256[] memory _bAssetQuantities, uint256[] memory _bAssetBalances, address _recipient, uint256 _feeRate) internal {
         uint256 supplyBackToSaving = 0;
-        uint256[] memory gapQuantities = new uint256[](len);
-        address[] memory borrowBAssets = new address[](len);
+        uint256[] memory gapQuantities = new uint256[](_bAssetQuantities.length);
+        address[] memory borrowBAssets = new address[](_bAssetQuantities.length);
         uint256 borrowBAssetsIndex = 0;
+        uint256 quantityMinusFee = 0;
         for (uint256 i = 0; i < _bAssetQuantities.length; i++) {
-            uint256 bAssetBalance = _bAssetBalances[i];
-            // Deduct the redemption fee, if any
-            (uint256 fee, uint256 outputMinusFee) = _deductRedeemFee(_bAssets[i], _bAssetQuantities[i], feeRate);
-            totalFee.add(fee);
-            uint256 bAssetPoolBalance = IERC20(_bAssets[i]).balanceOf(getBasketAddress());
-            uint256 quantityTransferred = HAssetHelpers.transferTokens(getBasketAddress(), _recipient, _bAssets[i], false, HonestMath.min(outputMinusFee, bAssetPoolBalance));
-            if (outputMinusFee <= bAssetPoolBalance) {
+            quantityMinusFee = _bAssetQuantities[i];
+            // handle redeem fee
+            //            (uint256 fee, uint256 outputMinusFee) = _deductRedeemFee(_bAssets[i], _bAssetQuantities[i], feeRate);
+            if (_feeRate > 0) {
+                quantityMinusFee = _bAssetQuantities[i].sub(_bAssetQuantities[i].mulTruncate(_feeRate));
+            }
+            //            uint256 quantityTransferred = HAssetHelpers.transferTokens(_getBasketAddress(), _recipient, _bAssets[i], false, HonestMath.min(outputMinusFee, _bAssetBalances[i]));
+            // TODO quantityTransferred check
+            if (quantityMinusFee <= _bAssetBalances[i]) {
                 // pool balance enough
-                gapQuantities[i] = 0;
+                HAssetHelpers.transferTokens(_getBasketAddress(), _recipient, _bAssets[i], false, quantityMinusFee);
             } else {
                 // pool balance not enough
-                gapQuantities[borrowBAssetsIndex] = outputMinusFee.sub(bAssetPoolBalance);
+                HAssetHelpers.transferTokens(_getBasketAddress(), _recipient, _bAssets[i], false, _bAssetBalances[i]);
+                gapQuantities[borrowBAssetsIndex] = quantityMinusFee.sub(_bAssetBalances[i]);
                 supplyBackToSaving.add(gapQuantities[borrowBAssetsIndex]);
                 borrowBAssets[borrowBAssetsIndex] = _bAssets[i];
                 borrowBAssetsIndex = borrowBAssetsIndex.add(1);
             }
         }
-        if (totalFee > 0) {
-            // handle fee
-            // trans hAsset fee to fee contract
-            uint256 feeTransferred = HAssetHelpers.transferTokens(getBasketAddress(), address(honestFeeInterface), address(this), false, totalFee);
-        }
-        if (supplyBackToSaving > 0) {
-            (address[] memory allBAssets, uint8[] memory statuses) = honestBasketInterface.getBasket();
-            address[] memory allValidBAssets = bAssetValidator.filterValidBAsset(allBAssets, statuses);
-            uint256[] memory supplies = new uint256[](allValidBAssets.length);
-            uint256[] memory poolBalances = new uint256[](allValidBAssets.length);
-            uint256 totalBAssetsPoolBalance = 0;
-            for (uint256 i = 0; i < allValidBAssets.length; i++) {
-                poolBalances[i] = IERC20(allValidBAssets[i]).balanceOf(address(honestBasketInterface));
-                totalBAssetsPoolBalance.add(poolBalances[i]);
-            }
-            for (uint256 i = 0; i < allValidBAssets.length; i++) {
-                supplies[i] = poolBalances[i].mul(supplyBackToSaving).div(totalBAssetsPoolBalance);
-            }
-            honestSavingsInterface.swap(msg.sender, borrowBAssets, gapQuantities, allValidBAssets, supplies);
-            // barrow gap quantity from saving, saving will send bAsset to msg.sender
-            //            uint256 barrowQuantity = honestSavingsInterface.borrowMulti(msg.sender, _bAssets, gapQuantities);
-            //            uint256 supplyBackToSavingQuantity = honestSavingsInterface.supply(supplyBackToSaving);
-        }
 
-        emit Redeemed(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);
-        return hAssetQuantity;
+        if (supplyBackToSaving > 0) {
+            _swapWithSaving(borrowBAssets, gapQuantities, supplyBackToSaving);
+        }
+    }
+
+    /** @dev swap bAsset with saving */
+    function _swapWithSaving(address[] memory _borrowBAssets, uint256[] memory _gapQuantities, uint256 _supplyBackToSaving) internal {
+        require(_supplyBackToSaving > 0, "Invalid supply quantity");
+        require(_borrowBAssets.length > 0 && _borrowBAssets.length == _gapQuantities.length, "Input array mismatch");
+        (address[] memory allBAssets, uint8[] memory statuses) = honestBasketInterface.getBasket();
+        address[] memory allValidBAssets = bAssetValidator.filterValidBAsset(allBAssets, statuses);
+        require(allValidBAssets.length > 0, "No valid bAsset in basket");
+        uint256[] memory supplies = new uint256[](allValidBAssets.length);
+        // query valid bAssets balance
+        (uint256 sumBalance, uint256[] memory bAssetBalances) = _getBAssetBasketBalance(allValidBAssets);
+        for (uint256 i = 0; i < allValidBAssets.length; i++) {
+            supplies[i] = bAssetBalances[i].mul(_supplyBackToSaving).div(sumBalance);
+        }
+        honestSavingsInterface.swap(msg.sender, _borrowBAssets, _gapQuantities, allValidBAssets, supplies);
+    }
+
+    function _getBAssetBasketBalance(address[] memory _bAssets)
+    internal
+    returns (uint256 sumBalance, uint256[] memory bAssetBalances){
+        sumBalance = 0;
+        for (uint256 i = 0; i < _bAssets.length; i++) {
+            bAssetBalances[i] = IERC20(_bAssets[i]).balanceOf(_getBasketAddress());
+            sumBalance = sumBalance.add(bAssetBalances[i]);
+        }
     }
 
 
@@ -506,26 +526,10 @@ InitializableReentrancyGuard {
     ****************************************/
 
     /**
-     * @dev Pay the forging fee by burning relative amount of hAsset
-     */
-    function _deductRedeemFee(address _asset, uint256 _bAssetQuantity, uint256 _feeRate)
-    private
-    returns (uint256 fee, uint256 outputMinusFee)
-    {
-        outputMinusFee = _bAssetQuantity;
-        if (_feeRate > 0) {
-            fee = _bAssetQuantity.mulTruncate(_feeRate);
-            outputMinusFee = _bAssetQuantity.sub(fee);
-
-            emit PaidFee(msg.sender, _asset, fee);
-        }
-    }
-
-    /**
       * @dev Gets the address of the BasketManager for this hAsset
       * @return HonestBasket contract Address
       */
-    function getBasketAddress()
+    function _getBasketAddress()
     public
     view
     returns (address)

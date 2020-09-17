@@ -249,7 +249,7 @@ InitializableReentrancyGuard {
         outputQuantity = outputMinusFee;
 
         uint256 bAssetPoolBalance = IERC20(_output).balanceOf(address(this));
-        uint256 quantitySwapOut = HAssetHelpers.transferTokens(address(this), _recipient, _output, false, outputMinusFee);
+        uint256 quantitySwapOut = HAssetHelpers.transferTokens(address(this), _recipient, _output, false, HonestMath.min(outputMinusFee, bAssetPoolBalance));
         // handle swap fee, mint hAsset ,save to fee contract
         ERC20Mintable(hAsset).mint(address(honestFeeInterface), swapFee);
 
@@ -268,14 +268,9 @@ InitializableReentrancyGuard {
         // calc bAsset supplies to saving
         address[] memory allValidBAssets = _getValidBAssets();
         uint256[] memory supplies = new uint256[](allValidBAssets.length);
-        uint256[] memory poolBalances = new uint256[](allValidBAssets.length);
-        uint256 totalBAssetsPoolBalance = 0;
+        (uint256 sumBalance, uint256[] memory bAssetBalances) = _getBAssetBasketBalance(allValidBAssets);
         for (uint256 i = 0; i < allValidBAssets.length; i++) {
-            poolBalances[i] = IERC20(allValidBAssets[i]).balanceOf(address(this));
-            totalBAssetsPoolBalance.add(poolBalances[i]);
-        }
-        for (uint256 i = 0; i < allValidBAssets.length; i++) {
-            supplies[i] = poolBalances[i].mul(_quantity).div(totalBAssetsPoolBalance);
+            supplies[i] = bAssetBalances[i].mul(_quantity).div(sumBalance);
         }
         // barrow gap quantity from saving, saving will send bAsset to msg.sender
         honestSavingsInterface.swap(msg.sender, borrowBAssets, borrows, allValidBAssets, supplies);
@@ -340,7 +335,7 @@ InitializableReentrancyGuard {
     function addBAsset(address _bAsset, uint8 _status)
     external
     nonReentrant
-//    onlyGovernor
+        //    onlyGovernor
     returns (uint8 index){
         index = _addBasset(_bAsset, _status);
     }
@@ -475,6 +470,17 @@ InitializableReentrancyGuard {
             outputMinusFee = _bAssetQuantity.sub(fee);
 
             emit PaidFee(msg.sender, _asset, fee);
+        }
+    }
+
+    function _getBAssetBasketBalance(address[] memory _bAssets)
+    internal
+    returns (uint256 sumBalance, uint256[] memory bAssetBalances){
+        require(_bAssets.length > 0, "No invalid bAssets");
+        sumBalance = 0;
+        for (uint256 i = 0; i < _bAssets.length; i++) {
+            bAssetBalances[i] = IERC20(_bAssets[i]).balanceOf(address(this));
+            sumBalance = sumBalance.add(bAssetBalances[i]);
         }
     }
 }
