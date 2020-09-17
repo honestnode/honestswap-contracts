@@ -2,7 +2,11 @@ pragma solidity ^0.5.0;
 
 interface IHonestBonus {
 
-    function calculateBonus(address _bAsset) external view returns (uint256);
+    function initialize(address _priceIntegrationContract) external;
+
+    function setPriceIntegration(address _contract) external;
+
+    function calculateBonus(address[] calldata _bAssets, uint256[] calldata _amounts, uint256 _fee) external view returns (uint256[] memory);
 
     function bonusOf(address _account) external view returns (uint256);
 

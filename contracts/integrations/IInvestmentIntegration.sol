@@ -2,6 +2,8 @@ pragma solidity ^0.5.0;
 
 interface IInvestmentIntegration {
 
+    function initialize(address[] calldata _addresses, address[] calldata _yAddresses) external;
+
     function assets() external view returns (address[] memory);
 
     function addAsset(address _address, address _yAddress) external;
@@ -12,7 +14,11 @@ interface IInvestmentIntegration {
 
     function collect(address _bAsset, uint256 _shares) external returns (uint256);
 
-    function valueOf(address _bAsset) external view returns (uint256);
+    function priceOf(address _bAsset) external view returns (uint256);
+
+    function shareOf(address _bAsset) external view returns (uint256);
+
+    function shares() external view returns (address[] memory, uint256[] memory, uint256);
 
     function balanceOf(address _bAsset) external view returns (uint256);
 

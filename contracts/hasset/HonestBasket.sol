@@ -402,6 +402,7 @@ InitializableReentrancyGuard {
         }
     }
 
+    // TODO: delete _integration
     function swapBAssets(address _integration, uint256 _totalAmount, address[] calldata _expectAssets)
     external
     returns (uint256[] memory) {
@@ -416,7 +417,7 @@ InitializableReentrancyGuard {
         uint256[] memory amounts = new uint256[](length);
         for (uint256 i = 0; i < length; ++i) {
             amounts[i] = _totalAmount.mul(percentages[i]).div(uint256(1e18));
-            ERC20Detailed(_expectAssets[i]).standardTransfer(_integration, amounts[i]);
+            ERC20Detailed(_expectAssets[i]).standardTransfer(msg.sender, amounts[i]);
         }
         return amounts;
     }
@@ -440,7 +441,7 @@ InitializableReentrancyGuard {
         }
 
         // trans hUSD(saving quantity + interests) back to saver
-        uint256 quantityHUSDBack = HAssetHelpers.transferTokens(address(this), msg.sender, hAsset, false, hUSDReturn);
+        uint256 quantityHUSDBack = HAssetHelpers.transferTokens(address(this), _account, hAsset, false, hUSDReturn);
 
     }
 

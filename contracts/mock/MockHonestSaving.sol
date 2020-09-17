@@ -49,7 +49,7 @@ contract MockHonestSaving is IHonestSavings {
         return totalShare;
     }
 
-    function netValue() external view returns (uint256) {
+    function sharePrice() external view returns (uint256) {
         return totalSave.mul(uint256(1e18)).div(totalShare);
     }
 
@@ -57,7 +57,7 @@ contract MockHonestSaving is IHonestSavings {
         return 10;
     }
 
-    function swap(address _account, address[] calldata _borrowBAssets, uint256[] calldata _borrows, address[] calldata _supplyBAssets, uint256[] calldata _supplies) external{
+    function swap(address _account, address[] calldata _borrowBAssets, uint256[] calldata _borrows, address[] calldata _supplyBAssets, uint256[] calldata _supplies) external {
 
     }
 
@@ -76,6 +76,11 @@ contract MockHonestSaving is IHonestSavings {
             amounts[i] = i.mul(10);
         }
         return amounts;
+    }
+
+    function initialize(address _hAssetContract, address _basketContract, address _investmentContract, address _feeContract, address _bonusContract)
+    external {
+
     }
 
 }

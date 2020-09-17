@@ -2,6 +2,8 @@ pragma solidity ^0.5.0;
 
 interface IHonestFee {
 
+    function initialize(address _hAssetContract) external;
+
     function swapFeeRate() external view returns (uint256);
 
     function redeemFeeRate() external view returns (uint256);

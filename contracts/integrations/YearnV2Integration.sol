@@ -1,13 +1,15 @@
 pragma solidity ^0.5.0;
 
 import {WhitelistedRole} from '@openzeppelin/contracts/access/roles/WhitelistedRole.sol';
-import '@openzeppelin/contracts/math/SafeMath.sol';
-import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
+import {SafeMath} from '@openzeppelin/contracts/math/SafeMath.sol';
+import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+import {ERC20Detailed} from '@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol';
+import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import {Address} from '@openzeppelin/contracts/utils/Address.sol';
 import {EnumerableSet} from '@openzeppelin/contracts/utils/EnumerableSet.sol';
 import {ReentrancyGuard} from '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import {IInvestmentIntegration} from "./IInvestmentIntegration.sol";
+import {StandardERC20} from "../util/StandardERC20.sol";
 
 interface yTokenV2 {
     function deposit(uint256 _amount) external;
@@ -22,21 +24,24 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
+    using StandardERC20 for ERC20Detailed;
 
     using EnumerableSet for EnumerableSet.AddressSet;
 
     EnumerableSet.AddressSet private _assets;
     mapping(address => address) private _contracts;
 
-    constructor() public {
-        _addWhitelisted(_msgSender());
+    function initialize(address[] calldata _addresses, address[] calldata _yAddresses) external onlyWhitelistAdmin {
+        for (uint256 i = 0; i < _addresses.length; ++i) {
+            addAsset(_addresses[i], _yAddresses[i]);
+        }
     }
 
     function assets() external view returns (address[] memory) {
         return _assets.enumerate();
     }
 
-    function addAsset(address _address, address _yAddress) external onlyWhitelisted {
+    function addAsset(address _address, address _yAddress) public onlyWhitelistAdmin {
         require(_address != address(0), 'address must be valid');
         require(_yAddress != address(0), 'yAddress must be valid');
 
@@ -46,7 +51,7 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         }
     }
 
-    function removeAsset(address _address) external onlyWhitelisted {
+    function removeAsset(address _address) external onlyWhitelistAdmin {
         require(_address != address(0), 'address must be valid');
 
         _assets.remove(_address);
@@ -64,25 +69,43 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         yTokenV2(yToken).deposit(_amount);
 
         uint256 shares = IERC20(yToken).balanceOf(address(this)).sub(before);
-        return shares;
+        return ERC20Detailed(yToken).standardize(shares);
     }
 
     function collect(address _asset, uint256 _shares) external onlyWhitelisted returns (uint256) {
         require(_shares > 0, "shares must greater than 0");
 
         yTokenV2 yToken = yTokenV2(_contractOf(_asset));
-        uint256 amount = _shares.mul(yToken.getPricePerFullShare()).div(uint256(1e18));
-        yToken.withdraw(_shares);
+        uint256 originShares = ERC20Detailed(address(yToken)).resume(_shares);
+        uint256 amount = originShares.mul(yToken.getPricePerFullShare()).div(uint256(1e18));
+
+        yToken.withdraw(originShares);
 
         require(amount <= IERC20(_asset).balanceOf(address(this)), "insufficient balance");
         IERC20(_asset).safeTransfer(_msgSender(), amount);
 
-        return amount;
+        return ERC20Detailed(_asset).standardize(amount);
     }
 
-    function valueOf(address _bAsset) external view returns (uint256) {
+    function priceOf(address _bAsset) external view returns (uint256) {
         address yToken = _contractOf(_bAsset);
         return yTokenV2(yToken).getPricePerFullShare();
+    }
+
+    function shareOf(address _bAsset) public view returns (uint256) {
+        require(_assets.contains(_bAsset), 'asset not supported');
+
+        return ERC20Detailed(_contractOf(_bAsset)).standardBalanceOf(address(this));
+    }
+
+    function shares() external view returns (address[] memory, uint256[] memory, uint256) {
+        uint256[] memory shares = new uint256[](_assets.length());
+        uint256 totalShare;
+        for (uint256 i = 0; i < _assets.length(); ++i) {
+            shares[i] = shareOf(_assets.get(i));
+            totalShare = totalShare.add(shares[i]);
+        }
+        return (_assets.enumerate(), shares, totalShare);
     }
 
     function balanceOf(address _asset) external view returns (uint256) {
@@ -90,10 +113,9 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
     }
 
     function balances() external view returns (address[] memory, uint256[] memory, uint256) {
-        uint256 length = _assets.length();
-        uint256[] memory aBalances = new uint256[](length);
+        uint256[] memory aBalances = new uint256[](_assets.length());
         uint256 totalBalances;
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint256 i = 0; i < _assets.length(); ++i) {
             aBalances[i] = _balanceOf(_assets.get(i));
             totalBalances = totalBalances.add(aBalances[i]);
         }
@@ -102,7 +124,7 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
 
     function totalBalance() external view returns (uint256) {
         uint256 length = _assets.length();
-        uint256 balance = 0;
+        uint256 balance;
 
         for (uint256 i = 0; i < length; ++i) {
             balance.add(_balanceOf(_assets.get(i)));
@@ -120,6 +142,10 @@ contract YearnV2Integration is IInvestmentIntegration, WhitelistedRole, Reentran
         address yToken = _contractOf(_asset);
 
         uint256 shares = IERC20(yToken).balanceOf(address(this));
-        return yTokenV2(yToken).getPricePerFullShare().mul(shares).div(uint256(1e18));
+        if (shares == 0) {
+            return 0;
+        }
+        uint256 amount = yTokenV2(yToken).getPricePerFullShare().mul(shares).div(uint256(1e18));
+        return ERC20Detailed(yToken).standardize(amount);
     }
 }
