@@ -66,7 +66,7 @@ contract('HonestSavings', async (accounts) => {
     await createContract();
   });
 
-  // describe('deposit', async () => {
+  // describe('exceptions', async () => {
   //
   //   it('deposit zero', async () => {
   //     await expectRevert.unspecified( // zero amount
@@ -90,61 +90,61 @@ contract('HonestSavings', async (accounts) => {
   //   });
   // });
 
+  const printStatement = async (investor) => {
+    const balance = await hAsset.balanceOf(investor);
+    const shares = await savings.sharesOf(investor);
+    const saving = await savings.savingsOf(investor);
+    const totalShares = await savings.totalShares();
+    const investment = await yearn.totalBalance();
+    const fees = await fee.totalFee();
+    console.log('------ statements');
+    console.log('investor hAsset balance: ', balance.toString());
+    console.log('investor savings: ', saving.toString());
+    console.log('investor share: ', shares.toString());
+    console.log('savings total shares: ', totalShares.toString());
+    console.log('investment total balances: ', investment.toString());
+    console.log('fee balances: ', fees.toString());
+    console.log('------');
+  };
+
+  const deposit100 = async (investor) => {
+    console.log('== deposit ==');
+    await printStatement(investor);
+    await hAsset.approve(savings.address, shift(100), {from: investor});
+
+    const shares = await savings.deposit.call(shift(100), {from: investor});
+    await savings.deposit(shift(100), {from: investor});
+    console.log('deposit shares: ', shares.toString());
+
+    await printStatement(investor);
+    return shares;
+  };
+
+  const withdraw100 = async (investor) => {
+    console.log('== withdraw ==');
+    const saving = await savings.savingsOf(investor);
+    await printStatement(investor);
+
+    await savings.withdraw(saving, {from: investor});
+
+    await printStatement(investor);
+  };
+
   describe('deposit and withdraw', async () => {
-
-    const printStatement = async (investor) => {
-      const balance = await hAsset.balanceOf(investor);
-      const shares = await savings.sharesOf(investor);
-      const saving = await savings.savingsOf(investor);
-      const totalShares = await savings.totalShares();
-      const investment = await yearn.totalBalance();
-      const fees = await fee.totalFee();
-      console.log('------ statements');
-      console.log('investor hAsset balance: ', balance.toString());
-      console.log('investor savings: ', saving.toString());
-      console.log('investor share: ', shares.toString());
-      console.log('savings total shares: ', totalShares.toString());
-      console.log('investment total balances: ', investment.toString());
-      console.log('fee balances: ', fees.toString());
-      console.log('------');
-    };
-
-    const deposit100 = async (investor) => {
-      console.log('== deposit ==');
-      await printStatement(investor);
-      await hAsset.approve(savings.address, shift(100), {from: investor});
-
-      const shares = await savings.deposit.call(shift(100), {from: investor});
-      await savings.deposit(shift(100), {from: investor});
-      console.log('deposit shares: ', shares.toString());
-
-      await printStatement(investor);
-      return shares;
-    };
-
-    const withdraw100 = async (investor) => {
-      console.log('== withdraw ==');
-      const saving = await savings.savingsOf(investor);
-      await printStatement(investor);
-
-      await savings.withdraw(saving, {from: investor});
-
-      await printStatement(investor);
-    };
 
     // it('deposit and withdraw without fee and bonus', async () => {
     //   await deposit100(investor1);
     // });
 
-    it('deposit and withdraw without bonus', async () => {
-      // assume the fee have 200 hAssets
-      await deposit100(investor1);
-      hAsset.mint(fee.address, shift(100));
-      await deposit100(investor2);
-      hAsset.mint(fee.address, shift(100));
-      await withdraw100(investor1);
-      await withdraw100(investor2);
-    });
+    // it('deposit and withdraw without bonus', async () => {
+    //   // assume the fee have 200 hAssets
+    //   await deposit100(investor1);
+    //   hAsset.mint(fee.address, shift(100));
+    //   await deposit100(investor2);
+    //   hAsset.mint(fee.address, shift(100));
+    //   await withdraw100(investor1);
+    //   await withdraw100(investor2);
+    // });
 
     // it('deposit and withdraw', async () => {
     //   // assume the fee have 200 hAssets and investor1 has 200e18 bonus
@@ -155,5 +155,44 @@ contract('HonestSavings', async (accounts) => {
     //   await withdraw100(investor1);
     //   await withdraw100(investor2);
     // });
+  });
+
+  describe('swap', async () => {
+    it('standard', async () => {
+      //function swap(address _account, address[] calldata _bAssets, uint256[] calldata _borrows, address[] calldata _sAssets, uint256[] calldata _supplies)
+      await deposit100(investor1);
+      await deposit100(investor2);
+
+      await dai.mint(investor1, shift(10));
+      await tusd.mint(investor1, shift(10));
+      let balance = await dai.balanceOf(investor1);
+      console.log(`dai: ${balance.toString()}`);
+      balance = await tusd.balanceOf(investor1);
+      console.log(`tusd: ${balance.toString()}`);
+      balance = await usdc.balanceOf(investor1);
+      console.log(`usdc: ${balance.toString()}`);
+      balance = await usdt.balanceOf(investor1);
+      console.log(`usdt: ${balance.toString()}`);
+
+      await dai.approve(savings.address, shift(10), {from: investor1});
+      await tusd.approve(savings.address, shift(10), {from: investor1});
+
+      const shares = await yearn.shares();
+      console.log(shares[0]);
+      shares[1].forEach(s => console.log(s.toString()));
+
+      await savings.swap(investor1, [usdt.address, usdc.address], [shift(10, 6), shift(10, 6)], [dai.address, tusd.address], [shift(10), shift(10)], {from: investor1});
+
+      balance = await dai.balanceOf(investor1);
+      console.log(`dai: ${balance.toString()}`);
+      balance = await tusd.balanceOf(investor1);
+      console.log(`tusd: ${balance.toString()}`);
+      balance = await usdc.balanceOf(investor1);
+      console.log(`usdc: ${balance.toString()}`);
+      balance = await usdt.balanceOf(investor1);
+      console.log(`usdt: ${balance.toString()}`);
+
+      await printStatement(investor1);
+    });
   });
 });

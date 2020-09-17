@@ -21,6 +21,7 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
     using SafeMath for uint256;
     using StandardERC20 for ERC20Detailed;
 
+    event TestAmount(uint256 amount);
     event SavingsDeposited(address indexed account, uint256 amount, uint256 shares);
     event SavingsRedeemed(address indexed account, uint256 shares, uint256 amount);
 
@@ -165,7 +166,8 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
     }
 
     function sharePrice() public view returns (uint256) {
-        return _totalPool().mul(uint256(1e18)).div(totalShares());
+        uint256 pool = IInvestmentIntegration(_investmentIntegration).totalBalance().add(IHonestFee(_fee).totalFee());
+        return pool.mul(uint256(1e18)).div(totalShares());
     }
 
     function apy() external view returns (uint256) {
@@ -177,22 +179,40 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         require(_bAssets.length == _borrows.length, "mismatch borrows amounts length");
         require(_sAssets.length == _supplies.length, "mismatch supplies amounts length");
 
-        uint256 supplies;
-        for(uint256 i = 0; i < _sAssets.length; ++i) {
-            supplies = supplies.add(_supplies[i]);
-            IERC20(_sAssets[i]).safeTransferFrom(_msgSender(), address(this), _supplies[i]);
-            IInvestmentIntegration(_investmentIntegration).invest(_sAssets[i], _supplies[i]);
-        }
+        uint256 supplies = _takeSwapSupplies(_sAssets, _supplies);
+        uint256 borrows = _giveSwapBorrows(_account, _bAssets, _borrows);
 
-        uint256 borrows;
-        for(uint256 i = 0; i < _bAssets.length; ++i) {
-            borrows = borrows.add(_borrows[i]);
-            uint256 shares = _borrows[i].mul(uint256(1e18)).div(IInvestmentIntegration(_investmentIntegration).priceOf(_bAssets[i]));
-            uint256 amount = IInvestmentIntegration(_investmentIntegration).collect(_bAssets[i], shares);
-            IERC20(_bAssets[i]).safeTransfer(_account, amount);
-        }
         require(borrows > 0, "amounts must greater than 0");
         require(borrows == supplies, "mismatch amounts");
+    }
+
+    function _takeSwapSupplies(address[] memory _sAssets, uint256[] memory _supplies) internal returns (uint256) {
+        uint256 supplies;
+        for(uint256 i = 0; i < _sAssets.length; ++i) {
+            if (_supplies[i] == 0) {
+                continue;
+            }
+            IERC20(_sAssets[i]).safeTransferFrom(_msgSender(), address(this), _supplies[i]);
+            IERC20(_sAssets[i]).safeApprove(_investmentIntegration, _supplies[i]);
+            IInvestmentIntegration(_investmentIntegration).invest(_sAssets[i], _supplies[i]);
+            supplies = supplies.add(ERC20Detailed(_sAssets[i]).standardize(_supplies[i]));
+        }
+        return supplies;
+    }
+
+    function _giveSwapBorrows(address _account, address[] memory _bAssets, uint256[] memory _borrows) internal returns (uint256) {
+        uint256 borrows;
+        for(uint256 i = 0; i < _bAssets.length; ++i) {
+            if (_borrows[i] == 0) {
+                continue;
+            }
+            uint256 standardAmount = ERC20Detailed(_bAssets[i]).standardize(_borrows[i]);
+            uint256 shares = standardAmount.mul(uint256(1e18)).div(IInvestmentIntegration(_investmentIntegration).priceOf(_bAssets[i]));
+            uint256 amount = IInvestmentIntegration(_investmentIntegration).collect(_bAssets[i], shares);
+            IERC20(_bAssets[i]).safeTransfer(_account, ERC20Detailed(_bAssets[i]).resume(amount));
+            borrows = borrows.add(standardAmount);
+        }
+        return borrows;
     }
 
     function investments() external view returns (address[] memory, uint256[] memory) {
@@ -213,13 +233,10 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         address[] memory assets = IInvestmentIntegration(_investmentIntegration).assets();
         uint256[] memory amounts = IHonestBasket(_basket).swapBAssets(_investmentIntegration, _amount, assets);
 
-//        uint256 length = assets.length;
-//        uint256[] memory shares = new uint256[](length);
         uint256 total;
         for (uint256 i = 0; i < assets.length; ++i) {
             uint256 actualAmount = ERC20Detailed(assets[i]).resume(amounts[i]);
             IERC20(assets[i]).safeApprove(_investmentIntegration, actualAmount);
-//            shares[i] = IInvestmentIntegration(_investmentIntegration).invest(assets[i], actualAmount);
             total = total.add(IInvestmentIntegration(_investmentIntegration).invest(assets[i], actualAmount));
         }
         return total;
@@ -263,10 +280,6 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
             IHonestBasket(_basket).distributeHAssets(_account, bAssets, amounts, 0);
         }
         return totalAmount;
-    }
-
-    function _totalPool() internal view returns (uint256) {
-        return IInvestmentIntegration(_investmentIntegration).totalBalance().add(IHonestFee(_fee).totalFee());
     }
 
     function _adjustSharesWithBonus(uint256 _value) internal view returns (uint256) {
