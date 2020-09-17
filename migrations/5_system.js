@@ -22,27 +22,27 @@ module.exports = function (deployer) {
     await deployer.deploy(HAsset);
     await deployer.deploy(HonestBasket);
 
-    const nexus = Nexus.deployed();
-    const chainLink = ChainLinkBAssetPrice.deployed();
-    const yearn = YearnV2Integration.deployed();
-    const hAsset = HAsset.deployed();
-    const basket = HonestBasket.deployed();
-    const bonus = HonestBonus.deployed();
-    const fee = HonestFee.deployed();
-    const savings = HonestSavings.deployed();
-    const validator = BAssetValidator.deployed();
-    const dai = MockDAI.deployed();
-    const tusd = MockTUSD.deployed();
-    const usdc = MockUSDC.deployed();
-    const usdt = MockUSDT.deployed();
+    const nexus = await Nexus.deployed();
+    const chainLink = await ChainLinkBAssetPrice.deployed();
+    const yearn = await YearnV2Integration.deployed();
+    const hAsset = await HAsset.deployed();
+    const basket = await HonestBasket.deployed();
+    const bonus = await HonestBonus.deployed();
+    const fee = await HonestFee.deployed();
+    const savings = await HonestSavings.deployed();
+    const validator = await BAssetValidator.deployed();
+    const dai = await MockDAI.deployed();
+    const tusd = await MockTUSD.deployed();
+    const usdc = await MockUSDC.deployed();
+    const usdt = await MockUSDT.deployed();
 
-    return Promise.all(
+    return Promise.all([
       fee.initialize(hAsset.address),
       bonus.initialize(chainLink.address),
       basket.initialize(nexus.address, hAsset.address, [dai.address, tusd.address, usdc.address, usdt.address],
         savings.address, fee.address, validator.address),
       savings.initialize(hAsset.address, basket.address, yearn.address, fee.address, bonus.address),
-      hAsset.initialize('hUSD', 18, nexus.address, basket.address, savings.address, bonus.address, fee.address, validator.address)
-    );
+      hAsset.initialize('hUSD', 'hUSD', nexus.address, basket.address, savings.address, bonus.address, fee.address, validator.address)
+    ]);
   });
 };
