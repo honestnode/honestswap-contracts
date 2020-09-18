@@ -148,14 +148,14 @@ contract('HonestSavings', async (accounts) => {
     //   await withdraw100(investor2);
     // });
 
-    it('deposit and withdraw', async () => {
-      bonus.addBonus(investor1, shift(200));
-      await deposit100(investor1);
-      hAsset.mint(fee.address, shift(100));
-      await deposit100(investor2);
-      await withdraw100(investor1);
-      await withdraw100(investor2);
-    });
+    // it('deposit and withdraw', async () => {
+    //   bonus.addBonus(investor1, shift(200));
+    //   await deposit100(investor1);
+    //   hAsset.mint(fee.address, shift(100));
+    //   await deposit100(investor2);
+    //   await withdraw100(investor1);
+    //   await withdraw100(investor2);
+    // });
   });
 
   // describe('swap', async () => {
@@ -196,4 +196,17 @@ contract('HonestSavings', async (accounts) => {
   //     await printStatement(investor1);
   //   });
   // });
+
+  describe('apy', async () => {
+
+    it('read apy', async () => {
+      let apy = await savings.apy();
+      console.log(apy.toString());
+
+      await deposit100(investor1);
+
+      apy = await savings.apy();
+      console.log(apy.toString());
+    });
+  });
 });

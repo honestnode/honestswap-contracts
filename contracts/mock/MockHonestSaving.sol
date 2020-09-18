@@ -53,7 +53,9 @@ contract MockHonestSaving is IHonestSavings {
         return totalSave.mul(uint256(1e18)).div(totalShare);
     }
 
-    function apy() external view returns (uint256) {
+    function updateApy() public {}
+
+    function apy() external view returns (int256) {
         return 10;
     }
 
