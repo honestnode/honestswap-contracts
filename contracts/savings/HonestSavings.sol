@@ -36,6 +36,9 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
 
     uint256 private _totalSavings;
     uint256 private _totalShares;
+    uint256 private _previousApyUpdateTime;
+    uint256 private _previousTotalValue;
+    int256 private _apy;
 
     function initialize(
         address _hAssetContract, address _basketContract, address _investmentContract,
@@ -46,6 +49,7 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         setInvestmentIntegrationContract(_investmentContract);
         setFeeContract(_feeContract);
         setBonusContract(_bonusContract);
+        _previousApyUpdateTime = block.timestamp;
     }
 
     function setHAssetContract(address _hAssetContract) public onlyWhitelistAdmin {
@@ -116,6 +120,8 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         _shares[_msgSender()] = _shares[_msgSender()].add(shares);
         _totalShares = _totalShares.add(shares);
 
+        _updateApy();
+
         emit SavingsDeposited(_msgSender(), _amount, shares);
         return shares;
     }
@@ -139,6 +145,8 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         if (remaining > 0) {
             _collect(_msgSender(), remaining, _amount);
         }
+
+        _updateApy();
 
         emit SavingsRedeemed(_msgSender(), credits, amount);
         return amount;
@@ -171,9 +179,33 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         return pool.mul(uint256(1e18)).div(total);
     }
 
-    function apy() external view returns (uint256) {
-        // TODO: implement
-        return 0;
+    function updateApy() public onlyWhitelistAdmin {
+        _updateApy();
+    }
+
+    function _updateApy() internal {
+        if (block.timestamp < _previousApyUpdateTime.add(24 hours)) {
+            return;
+        }
+        uint256 currentValue = IInvestmentIntegration(_investmentIntegration).totalBalance().add(IHonestFee(_fee).totalFee());
+        if (currentValue < _totalSavings) {
+            return;
+        }
+        currentValue = currentValue - _totalSavings;
+        if (currentValue == 0) {
+            return;
+        }
+        if (currentValue >= _previousTotalValue) {
+            _apy = int256(currentValue.sub(_previousTotalValue).mul(365 days).div(block.timestamp.sub(_previousApyUpdateTime)));
+        } else {
+            _apy = int256(-(_previousTotalValue.sub(currentValue).mul(365 days).div(block.timestamp.sub(_previousApyUpdateTime))));
+        }
+        _previousTotalValue = currentValue;
+        _previousApyUpdateTime = block.timestamp;
+    }
+
+    function apy() external view returns (int256) {
+        return _apy;
     }
 
     function swap(address _account, address[] calldata _bAssets, uint256[] calldata _borrows, address[] calldata _sAssets, uint256[] calldata _supplies) external {
@@ -281,14 +313,6 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
             IHonestBasket(_basket).distributeHAssets(_account, bAssets, amounts, 0);
         }
         return totalAmount;
-    }
-
-    function _adjustSharesWithBonus(uint256 _value) internal view returns (uint256) {
-        uint256 total = totalShares();
-        if (total == 0) {
-            return 0;
-        }
-        return _value.mul(_totalShares).div(total);
     }
 
     function _distributeFee(address _account, uint256 _amount) internal returns (uint256) {
