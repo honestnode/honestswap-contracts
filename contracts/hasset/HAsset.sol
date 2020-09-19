@@ -395,13 +395,18 @@ InitializableReentrancyGuard {
             feeRate = honestFeeInterface.redeemFeeRate();
         }
         uint256 totalFee = 0;
-        uint256[] memory standardQuantities = new uint256[](_bAssetQuantities.length);
+        uint256[] memory quantities = new uint256[](_bAssetQuantities.length);
+        uint256[] memory bAssetBasketBalances = new uint256[](_bAssetQuantities.length);
         for (uint256 i = 0; i < _bAssetQuantities.length; i++) {
-            standardQuantities[i] = ERC20Detailed(_bAssets[i]).standardize(_bAssetQuantities[i]);
-            require(standardQuantities[i] <= _bAssetBalances[i], "Cannot redeem more bAsset than balance");
-            hAssetQuantity = hAssetQuantity.add(standardQuantities[i]);
+            quantities[i] = ERC20Detailed(_bAssets[i]).standardize(_bAssetQuantities[i]);
+            require(quantities[i] <= bAssetBasketBalances[i], "Cannot redeem more bAsset than balance");
+            hAssetQuantity = hAssetQuantity.add(quantities[i]);
+
+            bAssetBasketBalances[i] = ERC20Detailed(_bAssets[i]).standardBalanceOf(_getBasketAddress());
             if (feeRate > 0) {
-                totalFee.add(standardQuantities[i].mulTruncate(feeRate));
+                totalFee.add(quantities[i].mulTruncate(feeRate));
+                // handle redeem fee
+                quantities[i] = quantities[i].sub(quantities[i].mulTruncate(feeRate));
 
                 emit PaidFee(msg.sender, _bAssets[i], _bAssetQuantities[i].mulTruncate(feeRate));
             }
@@ -418,33 +423,38 @@ InitializableReentrancyGuard {
             HAssetHelpers.transferTokens(_getBasketAddress(), address(honestFeeInterface), address(this), false, totalFee);
         }
 
-        _redeemFromBasket(_bAssets, standardQuantities, _bAssetBalances, _recipient, feeRate);
-
+        bool needSwap = _redeemFromBasket(_bAssets, quantities, bAssetBasketBalances, _recipient);
+        if (needSwap) {
+            _redeemSwap(_bAssets, quantities, bAssetBasketBalances);
+        }
         emit Redeemed(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);
     }
 
-    function _redeemFromBasket(address[] memory _bAssets, uint256[] memory _bAssetQuantities, uint256[] memory _bAssetBalances, address _recipient, uint256 _feeRate) internal {
-        uint256 supplyBackToSaving = 0;
-        uint256[] memory gapQuantities = new uint256[](_bAssetQuantities.length);
-        address[] memory borrowBAssets = new address[](_bAssetQuantities.length);
-        uint256 borrowBAssetsIndex = 0;
-        uint256 quantityMinusFee = 0;
-        for (uint256 i = 0; i < _bAssetQuantities.length; i++) {
-            quantityMinusFee = _bAssetQuantities[i];
-            // handle redeem fee
-            if (_feeRate > 0) {
-                quantityMinusFee = _bAssetQuantities[i].sub(_bAssetQuantities[i].mulTruncate(_feeRate));
+    function _redeemFromBasket(address[] memory _bAssets, uint256[] memory _quantities, uint256[] memory _bAssetBasketBalances, address _recipient)
+    internal returns (bool needSwap){
+        uint256 redeemQyt = 0;
+        for (uint256 i = 0; i < _bAssets.length; i++) {
+            redeemQyt = _quantities[i];
+            if (_quantities[i] > _bAssetBasketBalances[i]) {
+                // pool balance not enough
+                redeemQyt = _bAssetBasketBalances[i];
+                needSwap = true;
             }
             // TODO quantityTransferred check
-            HAssetHelpers.transferTokens(_getBasketAddress(), _recipient, _bAssets[i], false, ERC20Detailed(_bAssets[i]).resume(HonestMath.min(quantityMinusFee, _bAssetBalances[i])));
+            HAssetHelpers.transferTokens(_getBasketAddress(), _recipient, _bAssets[i], false, ERC20Detailed(_bAssets[i]).resume(redeemQyt));
+        }
+    }
 
-            if (quantityMinusFee <= _bAssetBalances[i]) {
-                // pool balance enough
-                //                HAssetHelpers.transferTokens(_getBasketAddress(), _recipient, _bAssets[i], false, ERC20Detailed(_bAssets[i]).resume(quantityMinusFee));
-            } else {
+    function _redeemSwap(address[] memory _bAssets, uint256[] memory _quantities, uint256[] memory _bAssetBasketBalances) internal {
+        uint256 supplyBackToSaving = 0;
+        uint256[] memory gapQuantities = new uint256[](_bAssets.length);
+        address[] memory borrowBAssets = new address[](_bAssets.length);
+        uint256 borrowBAssetsIndex = 0;
+        uint256 quantityMinusFee = 0;
+        for (uint256 i = 0; i < _bAssets.length; i++) {
+            if (_quantities[i] > _bAssetBasketBalances[i]) {
                 // pool balance not enough
-                //                HAssetHelpers.transferTokens(_getBasketAddress(), _recipient, _bAssets[i], false, ERC20Detailed(_bAssets[i]).resume(_bAssetBalances[i]));
-                gapQuantities[borrowBAssetsIndex] = quantityMinusFee.sub(_bAssetBalances[i]);
+                gapQuantities[borrowBAssetsIndex] = _quantities[i].sub(_bAssetBasketBalances[i]);
                 supplyBackToSaving.add(gapQuantities[borrowBAssetsIndex]);
                 borrowBAssets[borrowBAssetsIndex] = _bAssets[i];
                 borrowBAssetsIndex = borrowBAssetsIndex.add(1);

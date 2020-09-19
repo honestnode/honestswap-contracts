@@ -229,16 +229,23 @@ InitializableReentrancyGuard {
         uint256 quantitySwapIn = HAssetHelpers.transferTokens(msg.sender, address(this), _input, false, _quantity);
 
         // check output bAsset balance
-        uint256 standardQuantity = ERC20Detailed(_input).standardize(quantitySwapIn);
-        uint256 bAssetPoolBalance = ERC20Detailed(_output).standardBalanceOf(address(this));
-        require(standardQuantity <= bAssetPoolBalance, "Not enough swap out bAsset");
+        quantitySwapIn = ERC20Detailed(_input).standardize(quantitySwapIn);
+        // handle swap fee
+        (uint256 swapFee, uint256 outputMinusFee) = _deductSwapFee(_output, quantitySwapIn, honestFeeInterface.swapFeeRate());
 
-        // Deduct the swap fee, if any
-        (uint256 swapFee, uint256 outputMinusFee) = _deductSwapFee(_output, standardQuantity, honestFeeInterface.swapFeeRate());
+        uint256 bAssetPoolBalance = _getBalance(_output);
+        require(outputMinusFee <= bAssetPoolBalance, "Not enough swap out bAsset");
 
-        outputQuantity = HAssetHelpers.transferTokens(address(this), _recipient, _output, false, ERC20Detailed(_output).resume(HonestMath.min(outputMinusFee, bAssetPoolBalance)));
+        outputQuantity = outputMinusFee;
+        if (outputMinusFee > bAssetPoolBalance) {
+            outputQuantity = bAssetPoolBalance;
+        }
+        outputQuantity = ERC20Detailed(_output).resume(outputQuantity);
+        outputQuantity = HAssetHelpers.transferTokens(address(this), _recipient, _output, false, outputQuantity);
         // handle swap fee, mint hAsset ,save to fee contract
-        hAssetInterface.mintFee(address(honestFeeInterface), swapFee);
+        if (swapFee > 0) {
+            hAssetInterface.mintFee(address(honestFeeInterface), swapFee);
+        }
 
         if (outputMinusFee > bAssetPoolBalance) {
             // pool balance not enough
