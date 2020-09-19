@@ -15,9 +15,6 @@ const MockHonestFee = artifacts.require('MockHonestFee');
 contract('HAsset', async (accounts) => {
 
     const fullScale = new BN(10).pow(new BN(18));
-    const zero = new BN(0);
-    const hundred = new BN(100).mul(fullScale);
-    const twoHundred = new BN(200).mul(fullScale);
 
     const owner = accounts[0];
 
@@ -34,15 +31,25 @@ contract('HAsset', async (accounts) => {
 
     let bAssets;
 
+    const shift = (value, offset = 18) => {
+        if (offset === 0) {
+            return new BN(value);
+        } else if (offset > 0) {
+            return new BN(value).mul(new BN(10).pow(new BN(offset)));
+        } else {
+            return new BN(value).div(new BN(10).pow(new BN(offset)));
+        }
+    }
+
     const createContract = async () => {
         bAssetValidator = await BAssetValidatorArtifact.new();
         usdt = await MockUSDT.new();
-        // usdc = await MockUSDC.new();
+        usdc = await MockUSDC.new();
         // tusd = await MockTUSD.new();
         // dai = await MockDAI.new();
 
         // bAssets = [usdt.address, usdc.address, tusd.address, dai.address];
-        bAssets = [usdt.address];
+        bAssets = [usdt.address, usdc.address];
 
         savings = await MockHonestSaving.new();
         bonus = await MockHonestBonus.new();
@@ -51,34 +58,18 @@ contract('HAsset', async (accounts) => {
         basket = await MockHonestBasket.new();
 
         hAsset = await HAsset.new();
+
+        hAsset.initialize('honest USD', 'hUSD', owner, basket.address, savings.address, bonus.address, fee.address, bAssetValidator.address)
     };
 
     before(async () => {
         await createContract();
     });
 
-    describe('constructor', async () => {
-        it('illegal address', async () => {
-            await expectRevert.unspecified(
-                //         function initialize(
-                //             string calldata _nameArg,
-                //         string calldata _symbolArg,
-                //         address _nexus,
-                //         address _honestBasketInterface,
-                //         address _honestSavingsInterface,
-                //         address _honestBonusInterface,
-                //         address _honestFeeInterface,
-                //         address _bAssetValidator
-                // )
-                hAsset.initialize('honest USD', 'hUSD', owner, basket.address, savings.address, bonus.address, fee.address, bAssetValidator.address)
-            );
-        });
-    });
-
     describe('mint test', async () => {
         // function mintTo(address _bAsset, uint256 _bAssetQuantity, address _recipient) external returns (uint256 hAssetMinted);
         it('mintTo suc', async () => {
-            const mintQuantity = new BN(10).pow(new BN(19));
+            const mintQuantity = shift(100);
             const hUSDQuantity = await hAsset.mintTo(usdt.address, mintQuantity, owner);
             console.log("hUSDQuantity=" + hUSDQuantity);
             expect(mintQuantity).equal(hUSDQuantity);
@@ -87,7 +78,7 @@ contract('HAsset', async (accounts) => {
         it('mintMultiTo suc', async () => {
             // function mintMultiTo(address[] calldata _bAssets, uint256[] calldata _bAssetQuantity, address _recipient)
             // external returns (uint256 hAssetMinted);
-            const mintQuantity = new BN(10).pow(new BN(20));
+            const mintQuantity = shift(200);
             const mintBAsset = [usdt.address, usdc.address];
             const mintBAssetQuantities = [mintQuantity, mintQuantity];
 
@@ -101,7 +92,7 @@ contract('HAsset', async (accounts) => {
     describe('redeem test', async () => {
         it('redeemTo suc', async () => {
             // function redeemTo(address _bAsset, uint256 _bAssetQuantity, address _recipient) external returns (uint256 hAssetRedeemed);
-            const quantity = new BN(10).pow(new BN(19));
+            const quantity = shift(10);
             const hAssetRedeemed = await hAsset.redeemTo(usdt.address, quantity, owner);
             console.log("hAssetRedeemed=" + hAssetRedeemed);
             expect(true).equal(hAssetRedeemed > 0);
@@ -110,7 +101,7 @@ contract('HAsset', async (accounts) => {
         it('redeemMultiTo suc', async () => {
             // function redeemMultiTo(address[] calldata _bAssets, uint256[] calldata _bAssetQuantities, address _recipient)
             // external returns (uint256 hAssetRedeemed);
-            const quantity = new BN(10).pow(new BN(19));
+            const quantity = shift(20);
             const redeemBAsset = [usdt.address, usdc.address];
             const redeemBAssetQuantities = [quantity, quantity];
 
@@ -122,7 +113,7 @@ contract('HAsset', async (accounts) => {
         it('redeemMultiTo suc', async () => {
             // function redeemMultiInProportionTo(uint256 _bAssetQuantity, address _recipient)
             // external returns (uint256 hAssetRedeemed);
-            const quantity = new BN(10).pow(new BN(19));
+            const quantity = shift(10);
 
             const hAssetRedeemed = await hAsset.redeemMultiInProportionTo(quantity, accounts[1]);
             console.log("hAssetRedeemed=" + hAssetRedeemed);

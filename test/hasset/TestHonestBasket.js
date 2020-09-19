@@ -49,6 +49,8 @@ contract('HonestBasket', async (accounts) => {
         basket = await HonestBasket.new();
 
         bAssets = [usdt.address, usdc.address, tusd.address, dai.address];
+
+        basket.initialize(owner, hAsset.address, bAssets, savings.address, fee.address, bAssetValidator.address);
     };
 
     before(async () => {
@@ -59,18 +61,8 @@ contract('HonestBasket', async (accounts) => {
         console.log("swapFeeRate=" + swapFeeRate);
         const redeemFeeRate = await fee.redeemFeeRate();
         console.log("redeemFeeRate=" + redeemFeeRate);
-
-
     });
 
-    describe('constructor', async () => {
-        it('illegal address', async () => {
-            await expectRevert.unspecified(
-                basket.initialize(owner, hAsset.address, bAssets, savings.address, fee.address, bAssetValidator.address)
-            )
-            ;
-        });
-    });
 
     describe('query balance', async () => {
         // function validateMint(address _bAsset, uint8 _bAssetStatus, uint256 _bAssetQuantity)
