@@ -3,7 +3,7 @@ pragma solidity ^0.5.0;
 // Libs
 import {Initializable} from "@openzeppelin/upgrades/contracts/Initializable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20Detailed} from '@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol';
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import {InitializableToken} from "../common/InitializableToken.sol";
@@ -18,6 +18,7 @@ import {IBAssetValidator} from "../validator/IBAssetValidator.sol";
 import {IPlatformIntegration} from "../interfaces/IPlatformIntegration.sol";
 import {HAssetHelpers} from "../util/HAssetHelpers.sol";
 import {HonestMath} from "../util/HonestMath.sol";
+import {StandardERC20} from "../util/StandardERC20.sol";
 
 contract HAsset is
 Initializable,
@@ -28,6 +29,7 @@ InitializableReentrancyGuard {
 
     using SafeMath for uint256;
     using HonestMath for uint256;
+    using StandardERC20 for ERC20Detailed;
 
     // Forging Events
     event Minted(address indexed minter, address recipient, uint256 hAssetQuantity, address bAsset, uint256 bAssetQuantity);
@@ -40,7 +42,6 @@ InitializableReentrancyGuard {
     // State Events
     event RedemptionFeeChanged(uint256 fee);
 
-    address honestBasketAddress;
     IHonestBasket private honestBasketInterface;
     IHonestBonus private honestBonusInterface;
     IHonestFee private honestFeeInterface;
@@ -73,8 +74,6 @@ InitializableReentrancyGuard {
         honestBonusInterface = IHonestBonus(_honestBonusInterface);
         honestFeeInterface = IHonestFee(_honestFeeInterface);
         bAssetValidator = IBAssetValidator(_bAssetValidator);
-
-        honestBasketAddress = _honestBasketInterface;
     }
 
     /**
@@ -344,8 +343,7 @@ InitializableReentrancyGuard {
 
         uint256[] memory bAssetQuantities = new uint256[](bAssets.length);
         for (uint256 i = 0; i < bAssets.length; i++) {
-            uint256 quantity = _bAssetQuantity.mul(bAssetBalances[i]);
-            bAssetQuantities[i] = quantity.div(sumBalance);
+            bAssetQuantities[i] = _bAssetQuantity.mul(bAssetBalances[i]).div(sumBalance);
         }
 
         return _handleRedeem(bAssets, bAssetQuantities, bAssetBalances, _recipient, true);
@@ -362,8 +360,7 @@ InitializableReentrancyGuard {
     returns (uint256 hAssetRedeemed)
     {
         require(_recipient != address(0), "Must be a valid recipient");
-        uint256 len = _bAssets.length;
-        require(len > 0 && len == _bAssetQuantities.length, "Input array mismatch");
+        require(_bAssets.length > 0 && _bAssets.length == _bAssetQuantities.length, "Input array mismatch");
 
         // valid target bAssets
         (bool bAssetExist, uint8[] memory statuses) = honestBasketInterface.getBAssetsStatus(_bAssets);
@@ -375,7 +372,7 @@ InitializableReentrancyGuard {
 
         // query basket balance
         (uint256 sumBalance, uint256[] memory bAssetBalances) = honestBasketInterface.getBAssetsBalance(_bAssets);
-        require(len == bAssetBalances.length, "Query bAsset balance failed");
+        require(_bAssets.length == bAssetBalances.length, "Query bAsset balance failed");
 
         return _handleRedeem(_bAssets, _bAssetQuantities, bAssetBalances, _recipient, _inProportion);
     }
@@ -419,7 +416,6 @@ InitializableReentrancyGuard {
 
 
         emit Redeemed(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);
-        return hAssetQuantity;
     }
 
     function _redeemFromBasket(address[] memory _bAssets, uint256[] memory _bAssetQuantities, uint256[] memory _bAssetBalances, address _recipient, uint256 _feeRate) internal {
@@ -431,11 +427,9 @@ InitializableReentrancyGuard {
         for (uint256 i = 0; i < _bAssetQuantities.length; i++) {
             quantityMinusFee = _bAssetQuantities[i];
             // handle redeem fee
-            //            (uint256 fee, uint256 outputMinusFee) = _deductRedeemFee(_bAssets[i], _bAssetQuantities[i], feeRate);
             if (_feeRate > 0) {
                 quantityMinusFee = _bAssetQuantities[i].sub(_bAssetQuantities[i].mulTruncate(_feeRate));
             }
-            //            uint256 quantityTransferred = HAssetHelpers.transferTokens(_getBasketAddress(), _recipient, _bAssets[i], false, HonestMath.min(outputMinusFee, _bAssetBalances[i]));
             // TODO quantityTransferred check
             if (quantityMinusFee <= _bAssetBalances[i]) {
                 // pool balance enough
@@ -476,7 +470,7 @@ InitializableReentrancyGuard {
     returns (uint256 sumBalance, uint256[] memory bAssetBalances){
         sumBalance = 0;
         for (uint256 i = 0; i < _bAssets.length; i++) {
-            bAssetBalances[i] = IERC20(_bAssets[i]).balanceOf(_getBasketAddress());
+            bAssetBalances[i] = ERC20Detailed(_bAssets[i]).standardBalanceOf(_getBasketAddress());
             sumBalance = sumBalance.add(bAssetBalances[i]);
         }
     }
@@ -498,12 +492,12 @@ InitializableReentrancyGuard {
         return address(honestBasketInterface);
     }
 
-    modifier basket() {
-        require(honestBasketAddress == msg.sender, "Must be basket");
+    modifier onlyBasket() {
+        require(_basket() == msg.sender, "Must be basket");
         _;
     }
 
-    function mintFee(address _recipient, uint256 _fee) external basket returns (uint256 hAssetMinted){
+    function mintFee(address _recipient, uint256 _fee) external onlyBasket returns (uint256 hAssetMinted){
         require(_recipient != address(0), "Recipient address must be valid");
         require(_fee > 0, "Fee to mint must > 0");
         _mint(_recipient, _fee);

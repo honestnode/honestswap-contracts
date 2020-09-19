@@ -17,12 +17,13 @@ contract InitializableModuleKeys {
     bytes32 internal KEY_STAKING;             // 1.0
     bytes32 internal KEY_PROXY_ADMIN;         // 1.0
 
-    // mStable
+    // honestSwap
     bytes32 internal KEY_ORACLE_HUB;          // 1.0
     bytes32 internal KEY_MANAGER;             // 1.0
     bytes32 internal KEY_RECOLLATERALISER;    // 1.0
     bytes32 internal KEY_META_TOKEN;          // 1.0
     bytes32 internal KEY_SAVINGS_MANAGER;     // 1.0
+    bytes32 internal KEY_BASKET;     // 1.0
 
     /**
      * @dev Initialize function for upgradable proxy contracts. This function should be called
@@ -40,5 +41,6 @@ contract InitializableModuleKeys {
         KEY_RECOLLATERALISER = keccak256("Recollateraliser");
         KEY_META_TOKEN = keccak256("MetaToken");
         KEY_SAVINGS_MANAGER = keccak256("SavingsManager");
+        KEY_BASKET = keccak256("HonestBasket");
     }
 }

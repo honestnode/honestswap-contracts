@@ -117,6 +117,10 @@ contract InitializableModule is InitializableModuleKeys {
         return nexus.getModule(KEY_MANAGER);
     }
 
+    function _basket() internal view returns (address) {
+        return nexus.getModule(KEY_BASKET);
+    }
+
     /**
      * @dev Return SavingsManager Module address from the Nexus
      * @return Address of the SavingsManager Module contract

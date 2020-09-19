@@ -48,7 +48,6 @@ InitializableReentrancyGuard {
     IHonestFee private honestFeeInterface;
     IBAssetValidator private bAssetValidator;
     IHAsset private hAssetInterface;
-    //    address public honestFee;
 
     function initialize(
         address _nexus,
@@ -97,7 +96,7 @@ InitializableReentrancyGuard {
         (bool exist, uint8 index) = _isAssetInBasket(_bAsset);
         require(exist, "bAsset not exist");
 
-        balance = IERC20(_bAsset).balanceOf(address(this));
+        balance = ERC20Detailed(_bAsset).standardBalanceOf(address(this));
 
         address[] memory _bAssets = new address[](1);
         _bAssets[0] = _bAsset;
@@ -125,7 +124,7 @@ InitializableReentrancyGuard {
             (bool exist, uint8 index) = _isAssetInBasket(_bAssets[i]);
 
             if (exist) {
-                uint256 poolBalance = IERC20(_bAssets[i]).balanceOf(address(this));
+                uint256 poolBalance = ERC20Detailed(_bAssets[i]).standardBalanceOf(address(this));
                 bAssetBalances[i] = bAssetBalances[i].add(poolBalance);
                 sumBalance = sumBalance.add(bAssetBalances[i]);
             }
@@ -237,14 +236,14 @@ InitializableReentrancyGuard {
         HAssetHelpers.transferTokens(msg.sender, address(this), _input, false, _quantity);
 
         // check output bAsset balance
-        require(_quantity <= _getBalance(_output), "Not enough swap out bAsset");
+        uint256 bAssetPoolBalance = ERC20Detailed(_output).standardBalanceOf(address(this));
+        require(_quantity <= bAssetPoolBalance, "Not enough swap out bAsset");
 
         // Deduct the swap fee, if any
         (uint256 swapFee, uint256 outputMinusFee) = _deductSwapFee(_output, _quantity, honestFeeInterface.swapFeeRate());
 
         outputQuantity = outputMinusFee;
 
-        uint256 bAssetPoolBalance = IERC20(_output).balanceOf(address(this));
         uint256 quantitySwapOut = HAssetHelpers.transferTokens(address(this), _recipient, _output, false, HonestMath.min(outputMinusFee, bAssetPoolBalance));
         // handle swap fee, mint hAsset ,save to fee contract TODO
         hAssetInterface.mintFee(address(honestFeeInterface), swapFee);
@@ -462,7 +461,7 @@ InitializableReentrancyGuard {
         require(_bAssets.length > 0, "No invalid bAssets");
         sumBalance = 0;
         for (uint256 i = 0; i < _bAssets.length; i++) {
-            bAssetBalances[i] = IERC20(_bAssets[i]).balanceOf(address(this));
+            bAssetBalances[i] = ERC20Detailed(_bAssets[i]).standardBalanceOf(address(this));
             sumBalance = sumBalance.add(bAssetBalances[i]);
         }
     }
