@@ -3,13 +3,13 @@ pragma solidity ^0.5.0;
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {Initializable} from "@openzeppelin/upgrades/contracts/Initializable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20Mintable} from "@openzeppelin/contracts/token/ERC20/ERC20Mintable.sol";
 import {ERC20Detailed} from '@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol';
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import {InitializablePausableModule} from "../common/InitializablePausableModule.sol";
 import {InitializableReentrancyGuard} from "../common/InitializableReentrancyGuard.sol";
 import {IHonestBasket} from "../interfaces/IHonestBasket.sol";
+import {IHAsset} from "../interfaces/IHAsset.sol";
 import {IHonestSavings} from "../interfaces/IHonestSavings.sol";
 import {IHonestFee} from "../interfaces/IHonestFee.sol";
 import {StandardERC20} from "../util/StandardERC20.sol";
@@ -47,6 +47,7 @@ InitializableReentrancyGuard {
     IHonestSavings private honestSavingsInterface;
     IHonestFee private honestFeeInterface;
     IBAssetValidator private bAssetValidator;
+    IHAsset private hAssetInterface;
     //    address public honestFee;
 
     function initialize(
@@ -67,6 +68,7 @@ InitializableReentrancyGuard {
         require(_bAssets.length > 0, "Must initialise with some bAssets");
         hAsset = _hAsset;
 
+        hAssetInterface = IHAsset(_hAsset);
         honestSavingsInterface = IHonestSavings(_honestSavingsInterface);
         honestFeeInterface = IHonestFee(_honestFeeInterface);
         bAssetValidator = IBAssetValidator(_bAssetValidator);
@@ -245,7 +247,7 @@ InitializableReentrancyGuard {
         uint256 bAssetPoolBalance = IERC20(_output).balanceOf(address(this));
         uint256 quantitySwapOut = HAssetHelpers.transferTokens(address(this), _recipient, _output, false, HonestMath.min(outputMinusFee, bAssetPoolBalance));
         // handle swap fee, mint hAsset ,save to fee contract TODO
-        ERC20Mintable(hAsset).mint(address(honestFeeInterface), swapFee);
+        hAssetInterface.mintFee(address(honestFeeInterface), swapFee);
 
         if (outputMinusFee > bAssetPoolBalance) {
             // pool balance not enough
@@ -400,7 +402,7 @@ InitializableReentrancyGuard {
 
     function distributeHAssets(address _account, address[] calldata _bAssets, uint256[] calldata _amounts, uint256 _interests)
     external {
-        require(_account != address(0), "Saver address address must be valid");
+        require(_account != address(0), "Saver address must be valid");
         require(_bAssets.length > 0 && _bAssets.length == _amounts.length, "BAssets array mismatch ");
 
         uint256 hUSDReturn = 0;
@@ -413,7 +415,7 @@ InitializableReentrancyGuard {
         }
 
         if (_interests > 0) {// mint interests to basket
-            ERC20Mintable(hAsset).mint(address(this), _interests);
+            hAssetInterface.mintFee(address(this), _interests);
         }
 
         // trans hUSD(saving quantity + interests) back to saver

@@ -4,7 +4,6 @@ pragma solidity ^0.5.0;
 import {Initializable} from "@openzeppelin/upgrades/contracts/Initializable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20Mintable} from "@openzeppelin/contracts/token/ERC20/ERC20Mintable.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import {InitializableToken} from "../common/InitializableToken.sol";
@@ -41,6 +40,7 @@ InitializableReentrancyGuard {
     // State Events
     event RedemptionFeeChanged(uint256 fee);
 
+    address honestBasketAddress;
     IHonestBasket private honestBasketInterface;
     IHonestBonus private honestBonusInterface;
     IHonestFee private honestFeeInterface;
@@ -74,7 +74,7 @@ InitializableReentrancyGuard {
         honestFeeInterface = IHonestFee(_honestFeeInterface);
         bAssetValidator = IBAssetValidator(_bAssetValidator);
 
-    //        ERC20Mintable(address(this)).addMinter(_honestBasketInterface);
+        honestBasketAddress = _honestBasketInterface;
     }
 
     /**
@@ -84,13 +84,13 @@ InitializableReentrancyGuard {
      * @param _bAssetQuantity Quantity in bAsset units
      * @return hAssetMinted   Number of newly minted hAssets
      */
-//    function mint(address _bAsset, uint256 _bAssetQuantity)
-//    external
-//    nonReentrant
-//    returns (uint256 hAssetMinted)
-//    {
-//        return _mintTo(_bAsset, _bAssetQuantity, msg.sender);
-//    }
+    //    function mint(address _bAsset, uint256 _bAssetQuantity)
+    //    external
+    //    nonReentrant
+    //    returns (uint256 hAssetMinted)
+    //    {
+    //        return _mintTo(_bAsset, _bAssetQuantity, msg.sender);
+    //    }
 
     /**
      * @dev Mint a single bAsset, at a 1:1 ratio with the bAsset. This contract
@@ -121,13 +121,13 @@ InitializableReentrancyGuard {
      *                          should mirror the above
      * @return hAssetMinted     Number of newly minted hAssets
      */
-//    function mintMulti(address[] calldata _bAssets, uint256[] calldata _bAssetQuantity)
-//    external
-//    nonReentrant
-//    returns (uint256 hAssetMinted)
-//    {
-//        return _mintTo(_bAssets, _bAssetQuantity, msg.sender);
-//    }
+    //    function mintMulti(address[] calldata _bAssets, uint256[] calldata _bAssetQuantity)
+    //    external
+    //    nonReentrant
+    //    returns (uint256 hAssetMinted)
+    //    {
+    //        return _mintTo(_bAssets, _bAssetQuantity, msg.sender);
+    //    }
 
     /**
      * @dev Mint with multiple bAssets, at a 1:1 ratio to mAsset. This contract
@@ -241,13 +241,13 @@ InitializableReentrancyGuard {
      * @param _bAssetQuantity   Units of the bAsset to redeem
      * @return hAssetRedeemed     Relative number of hAsset units burned to pay for the bAssets
      */
-//    function redeem(address _bAsset, uint256 _bAssetQuantity)
-//    external
-//    nonReentrant
-//    returns (uint256 hAssetRedeemed)
-//    {
-//        return _redeemTo(_bAsset, _bAssetQuantity, msg.sender);
-//    }
+    //    function redeem(address _bAsset, uint256 _bAssetQuantity)
+    //    external
+    //    nonReentrant
+    //    returns (uint256 hAssetRedeemed)
+    //    {
+    //        return _redeemTo(_bAsset, _bAssetQuantity, msg.sender);
+    //    }
 
     /**
      * @dev Credits a recipient with a certain quantity of selected bAsset, in exchange for burning the
@@ -272,13 +272,13 @@ InitializableReentrancyGuard {
      * @param _bAssetQuantities Units of the bAssets to redeem
      * @return hAssetRedeemed     Relative number of hAsset units burned to pay for the bAssets
      */
-//    function redeemMulti(address[] calldata _bAssets, uint256[] calldata _bAssetQuantities)
-//    external
-//    nonReentrant
-//    returns (uint256 hAssetRedeemed)
-//    {
-//        return _redeemTo(_bAssets, _bAssetQuantities, msg.sender, false);
-//    }
+    //    function redeemMulti(address[] calldata _bAssets, uint256[] calldata _bAssetQuantities)
+    //    external
+    //    nonReentrant
+    //    returns (uint256 hAssetRedeemed)
+    //    {
+    //        return _redeemTo(_bAssets, _bAssetQuantities, msg.sender, false);
+    //    }
 
     /**
      * @dev Credits a recipient with a certain quantity of selected bAssets, in exchange for burning the
@@ -296,13 +296,13 @@ InitializableReentrancyGuard {
         return _redeemTo(_bAssets, _bAssetQuantities, _recipient, false);
     }
 
-//    function redeemMultiInProportion(uint256 _bAssetQuantity)
-//    external
-//    nonReentrant
-//    returns (uint256 hAssetRedeemed)
-//    {
-//        return _redeemToInProportion(_bAssetQuantity, msg.sender);
-//    }
+    //    function redeemMultiInProportion(uint256 _bAssetQuantity)
+    //    external
+    //    nonReentrant
+    //    returns (uint256 hAssetRedeemed)
+    //    {
+    //        return _redeemToInProportion(_bAssetQuantity, msg.sender);
+    //    }
 
     function redeemMultiInProportionTo(uint256 _bAssetQuantity, address _recipient)
     external
@@ -337,7 +337,7 @@ InitializableReentrancyGuard {
         address[] memory bAssets = bAssetValidator.filterValidBAsset(allBAssets, statuses);
 
         require(bAssets.length > 0, "No valid bAssets");
-//        uint len = bAssets.length;
+        //        uint len = bAssets.length;
         (uint256 sumBalance, uint256[] memory bAssetBalances) = honestBasketInterface.getBAssetsBalance(bAssets);
         require(bAssets.length == bAssetBalances.length, "Query bAsset balance failed");
         // calc bAssets quantity in Proportion
@@ -498,4 +498,14 @@ InitializableReentrancyGuard {
         return address(honestBasketInterface);
     }
 
+    modifier basket() {
+        require(honestBasketAddress == msg.sender, "Must be basket");
+        _;
+    }
+
+    function mintFee(address _recipient, uint256 _fee) external basket returns (uint256 hAssetMinted){
+        require(_recipient != address(0), "Recipient address must be valid");
+        require(_fee > 0, "Fee to mint must > 0");
+        _mint(_recipient, _fee);
+    }
 }
