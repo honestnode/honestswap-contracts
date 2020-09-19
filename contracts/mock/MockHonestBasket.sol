@@ -17,6 +17,9 @@ contract MockHonestBasket is IHonestBasket {
     address[] private _bAssets;
     uint8[] private _statues;
     uint256[] private _balances;
+    mapping(address => uint8) private bAssetsMap;
+    mapping(address => uint8) private bAssetStatusMap;
+
 
     function initialize(address _hAssetContract) external {
         _hAsset = _hAssetContract;
@@ -24,17 +27,28 @@ contract MockHonestBasket is IHonestBasket {
 
     /** @dev Balance value of the bAsset */
     function getBalance(address _bAsset) external view returns (uint256 balance) {
-        return 0;
+        balance = ERC20Detailed(_bAsset).standardBalanceOf(address(this));
     }
 
     /** @dev Balance of each bAsset */
-    function getBAssetsBalance(address[] calldata _bAssets) external view returns (uint256 sumBalance, uint256[] memory balances) {
-        return (0, new uint256[](_bAssets.length));
+    function getBAssetsBalance(address[] calldata _bAssetsIn) external view returns (uint256 sumBalance, uint256[] memory balances) {
+        //        return (0, new uint256[](_bAssets.length));
+        sumBalance = 0;
+        for (uint256 i = 0; i < _bAssetsIn.length; i++) {
+            balances[i] = balances[i].add(ERC20Detailed(_bAssetsIn[i]).standardBalanceOf(address(this)));
+            sumBalance = sumBalance.add(balances[i]);
+        }
     }
 
     /** @dev Balance of all the bAssets in basket */
     function getBasketAllBalance() external view returns (uint256 sumBalance, address[] memory allBAssets, uint256[] memory balances) {
-        return (0, _bAssets, _balances);
+        sumBalance = 0;
+        allBAssets = _bAssets;
+        for (uint256 i = 0; i < _bAssets.length; i++) {
+            balances[i] = balances[i].add(ERC20Detailed(_bAssets[i]).standardBalanceOf(address(this)));
+            sumBalance = sumBalance.add(balances[i]);
+        }
+        return (sumBalance, _bAssets, _balances);
     }
 
     /** @dev Basket all bAsset info */
@@ -44,17 +58,22 @@ contract MockHonestBasket is IHonestBasket {
 
     /** @dev query bAsset info */
     function getBAssetStatus(address _bAsset) external returns (bool, uint8) {
-        return (false, 0);
+        return (true, 0);
     }
 
     /** @dev query bAssets info */
     function getBAssetsStatus(address[] calldata _bAssets) external returns (bool, uint8[] memory) {
-        return (false, _statues);
+        return (true, _statues);
     }
 
     /** @dev Setters for Gov to update Basket composition */
     function addBAsset(address _bAsset, uint8 _status) external returns (uint8 index) {
-        return 0;
+        uint8 numberOfBassetsInBasket = uint8(_bAssets.length);
+        _bAssets.push(_bAsset);
+        _statues.push(_status);
+        bAssetStatusMap[_bAsset] = _status;
+        bAssetsMap[_bAsset] = numberOfBassetsInBasket;
+        return numberOfBassetsInBasket;
     }
 
     function updateBAssetStatus(address _bAsset, uint8 _newStatus) external returns (uint8 index) {
@@ -79,7 +98,7 @@ contract MockHonestBasket is IHonestBasket {
         require(length > 0, "assets length must greater than 0");
 
         uint256[] memory percentages = new uint256[](length);
-        for(uint256 i = 0; i < length; ++i) {
+        for (uint256 i = 0; i < length; ++i) {
             percentages[i] = uint256(100).div(length).mul(uint256(10) ** uint256(16));
         }
 
@@ -94,7 +113,7 @@ contract MockHonestBasket is IHonestBasket {
     function distributeHAssets(address _account, address[] calldata _assets, uint256[] calldata _amounts, uint256 _interests)
     external {
         uint256 totalAmount;
-        for(uint256 i = 0; i < _assets.length; ++i) {
+        for (uint256 i = 0; i < _assets.length; ++i) {
             IERC20(_assets[i]).safeTransferFrom(msg.sender, address(this), _amounts[i]);
             totalAmount = totalAmount.add(ERC20Detailed(_assets[i]).standardize(_amounts[i]));
         }

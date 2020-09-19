@@ -64,6 +64,9 @@ contract('HAsset', async (accounts) => {
 
     before(async () => {
         await createContract();
+        // function addBAsset(address _bAsset, uint8 _status) external returns (uint8 index) {
+        basket.addBAsset(usdt.address, 0);
+        basket.addBAsset(usdc.address, 0);
     });
 
     describe('mint test', async () => {

@@ -80,12 +80,6 @@ InitializableReentrancyGuard {
         }
     }
 
-    modifier managerOrGovernor() {
-        require(
-            _manager() == msg.sender || _governor() == msg.sender,
-            "Must be manager or governor");
-        _;
-    }
 
     //    function getBalance(address _bAsset) external view returns (uint256 balance){
     //        return _getBalance(_bAsset);
@@ -318,7 +312,7 @@ InitializableReentrancyGuard {
     /** @dev Setters for Gov to update Basket composition */
     function addBAsset(address _bAsset, uint8 _status)
     external
-    managerOrGovernor
+    onlyGovernor
     nonReentrant
     returns (uint8 index){
         index = _addBasset(_bAsset, _status);
@@ -366,7 +360,7 @@ InitializableReentrancyGuard {
 
     function updateBAssetStatus(address _bAsset, uint8 _newStatus)
     external
-    managerOrGovernor
+    onlyGovernor
     returns (uint8 index)
     {
         (bool exists, uint256 i) = _isAssetInBasket(_bAsset);
