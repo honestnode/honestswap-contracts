@@ -226,20 +226,18 @@ InitializableReentrancyGuard {
         require(swapValid, reason);
 
         // transfer bAsset to basket
-        //        uint256 quantitySwapIn =
-        HAssetHelpers.transferTokens(msg.sender, address(this), _input, false, _quantity);
+        uint256 quantitySwapIn = HAssetHelpers.transferTokens(msg.sender, address(this), _input, false, _quantity);
 
         // check output bAsset balance
+        uint256 standardQuantity = ERC20Detailed(_input).standardize(quantitySwapIn);
         uint256 bAssetPoolBalance = ERC20Detailed(_output).standardBalanceOf(address(this));
-        require(_quantity <= bAssetPoolBalance, "Not enough swap out bAsset");
+        require(standardQuantity <= bAssetPoolBalance, "Not enough swap out bAsset");
 
         // Deduct the swap fee, if any
-        (uint256 swapFee, uint256 outputMinusFee) = _deductSwapFee(_output, _quantity, honestFeeInterface.swapFeeRate());
+        (uint256 swapFee, uint256 outputMinusFee) = _deductSwapFee(_output, standardQuantity, honestFeeInterface.swapFeeRate());
 
-        outputQuantity = outputMinusFee;
-
-        uint256 quantitySwapOut = HAssetHelpers.transferTokens(address(this), _recipient, _output, false, HonestMath.min(outputMinusFee, bAssetPoolBalance));
-        // handle swap fee, mint hAsset ,save to fee contract TODO
+        outputQuantity = HAssetHelpers.transferTokens(address(this), _recipient, _output, false, ERC20Detailed(_output).resume(HonestMath.min(outputMinusFee, bAssetPoolBalance)));
+        // handle swap fee, mint hAsset ,save to fee contract
         hAssetInterface.mintFee(address(honestFeeInterface), swapFee);
 
         if (outputMinusFee > bAssetPoolBalance) {
@@ -284,7 +282,7 @@ InitializableReentrancyGuard {
         require(_output != hAsset, "Cannot swap hAsset");
 
         //        bool isMint = (_output == address(this));
-        uint256 quantity = _quantity;
+        uint256 quantity = ERC20Detailed(_input).standardize(_quantity);
 
         // valid target bAssets
         address[] memory bAssets = new address[](2);
@@ -297,16 +295,14 @@ InitializableReentrancyGuard {
         (bool swapValid, string memory reason) = bAssetValidator.validateSwap(_input, statuses[0], _output, statuses[1], _quantity);
         if (!swapValid) {
             return (false, reason, 0);
-
-            uint256 swapFeeRate = honestFeeInterface.swapFeeRate();
-            if (swapFeeRate > 0) {
-                uint256 swapFee = _quantity.mulTruncate(swapFeeRate);
-                outputQuantity = _quantity.sub(swapFee);
-            } else {
-                outputQuantity = _quantity;
-            }
-            return (true, "", outputQuantity);
         }
+        uint256 swapFeeRate = honestFeeInterface.swapFeeRate();
+        if (swapFeeRate > 0) {
+            uint256 swapFee = quantity.mulTruncate(swapFeeRate);
+            quantity = quantity.sub(swapFee);
+        }
+        outputQuantity = ERC20Detailed(_output).resume(quantity);
+        return (true, "", outputQuantity);
     }
 
     /** @dev Setters for Gov to update Basket composition */

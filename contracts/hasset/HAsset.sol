@@ -170,16 +170,16 @@ InitializableReentrancyGuard {
 
         // transfer bAsset to basket
         uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, _getBasketAddress(), _bAsset, false, _bAssetQuantity);
-
-        uint256 redeemFeeRate = honestFeeInterface.redeemFeeRate();
-        uint256 bonus = honestBonusInterface.calculateBonus(_bAsset, _bAssetQuantity, redeemFeeRate);
+        hAssetMinted = ERC20Detailed(_bAsset).standardize(quantityTransferred);
+        //        uint256 redeemFeeRate = honestFeeInterface.redeemFeeRate();
+        uint256 bonus = honestBonusInterface.calculateBonus(_bAsset, hAssetMinted, honestFeeInterface.redeemFeeRate());
         if (bonus > 0) {
             honestBonusInterface.addBonus(msg.sender, bonus);
         }
 
         // Mint the HAsset
-        _mint(_recipient, quantityTransferred);
-        emit Minted(msg.sender, _recipient, quantityTransferred, _bAsset, quantityTransferred);
+        _mint(_recipient, hAssetMinted);
+        emit Minted(msg.sender, _recipient, hAssetMinted, _bAsset, _bAssetQuantity);
 
         return quantityTransferred;
     }
@@ -200,23 +200,25 @@ InitializableReentrancyGuard {
         (bool mintValid, string memory reason) = bAssetValidator.validateMintMulti(_bAssets, statuses, _bAssetQuantities);
         require(mintValid, reason);
 
-        uint256[] memory quantityTransferred = new  uint256[](_bAssetQuantities.length);
-        for (uint256 i = 0; i < _bAssetQuantities.length; i++) {
-            if (_bAssetQuantities[i] > 0) {
-                // transfer bAsset to basket
-                quantityTransferred[i] = HAssetHelpers.transferTokens(msg.sender, _getBasketAddress(), _bAssets[i], false, _bAssetQuantities[i]);
-                hAssetQuantity = hAssetQuantity.add(quantityTransferred[i]);
-            }
-        }
-        require(hAssetQuantity > 0, "No hAsset quantity to mint");
-
+        (uint256 mintQuantity, uint256[] memory quantityTransferred) = _mintTrans(_bAssets, _bAssetQuantities);
+        require(mintQuantity > 0, "No hAsset quantity to mint");
+        hAssetQuantity = mintQuantity;
         // Mint the HAsset
         _mint(_recipient, hAssetQuantity);
         emit MintedMulti(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);
 
         _addMintBonus(_bAssets, quantityTransferred, _recipient);
+    }
 
-        return hAssetQuantity;
+    function _mintTrans(address[] memory _bAssets, uint256[] memory _bAssetQuantities) internal returns (uint256 hAssetQuantity, uint256[] memory quantityTransferred){
+        for (uint256 i = 0; i < _bAssetQuantities.length; i++) {
+            if (_bAssetQuantities[i] > 0) {
+                // transfer bAsset to basket
+                quantityTransferred[i] = HAssetHelpers.transferTokens(msg.sender, _getBasketAddress(), _bAssets[i], false, _bAssetQuantities[i]);
+                quantityTransferred[i] = ERC20Detailed(_bAssets[i]).standardize(quantityTransferred[i]);
+                hAssetQuantity = hAssetQuantity.add(quantityTransferred[i]);
+            }
+        }
     }
 
     function _addMintBonus(address[] memory _bAssets, uint256[] memory _bAssetQuantities, address _recipient) internal {
@@ -393,11 +395,13 @@ InitializableReentrancyGuard {
             feeRate = honestFeeInterface.redeemFeeRate();
         }
         uint256 totalFee = 0;
+        uint256[] memory standardQuantities = new uint256[](_bAssetQuantities.length);
         for (uint256 i = 0; i < _bAssetQuantities.length; i++) {
-            require(_bAssetQuantities[i] <= _bAssetBalances[i], "Cannot redeem more bAsset than balance");
-            hAssetQuantity = hAssetQuantity.add(_bAssetQuantities[i]);
+            standardQuantities[i] = ERC20Detailed(_bAssets[i]).standardize(_bAssetQuantities[i]);
+            require(standardQuantities[i] <= _bAssetBalances[i], "Cannot redeem more bAsset than balance");
+            hAssetQuantity = hAssetQuantity.add(standardQuantities[i]);
             if (feeRate > 0) {
-                totalFee.add(_bAssetQuantities[i].mulTruncate(feeRate));
+                totalFee.add(standardQuantities[i].mulTruncate(feeRate));
 
                 emit PaidFee(msg.sender, _bAssets[i], _bAssetQuantities[i].mulTruncate(feeRate));
             }
@@ -414,6 +418,7 @@ InitializableReentrancyGuard {
             HAssetHelpers.transferTokens(_getBasketAddress(), address(honestFeeInterface), address(this), false, totalFee);
         }
 
+        _redeemFromBasket(_bAssets, standardQuantities, _bAssetBalances, _recipient, feeRate);
 
         emit Redeemed(msg.sender, _recipient, hAssetQuantity, _bAssets, _bAssetQuantities);
     }
@@ -431,12 +436,14 @@ InitializableReentrancyGuard {
                 quantityMinusFee = _bAssetQuantities[i].sub(_bAssetQuantities[i].mulTruncate(_feeRate));
             }
             // TODO quantityTransferred check
+            HAssetHelpers.transferTokens(_getBasketAddress(), _recipient, _bAssets[i], false, ERC20Detailed(_bAssets[i]).resume(HonestMath.min(quantityMinusFee, _bAssetBalances[i])));
+
             if (quantityMinusFee <= _bAssetBalances[i]) {
                 // pool balance enough
-                HAssetHelpers.transferTokens(_getBasketAddress(), _recipient, _bAssets[i], false, quantityMinusFee);
+                //                HAssetHelpers.transferTokens(_getBasketAddress(), _recipient, _bAssets[i], false, ERC20Detailed(_bAssets[i]).resume(quantityMinusFee));
             } else {
                 // pool balance not enough
-                HAssetHelpers.transferTokens(_getBasketAddress(), _recipient, _bAssets[i], false, _bAssetBalances[i]);
+                //                HAssetHelpers.transferTokens(_getBasketAddress(), _recipient, _bAssets[i], false, ERC20Detailed(_bAssets[i]).resume(_bAssetBalances[i]));
                 gapQuantities[borrowBAssetsIndex] = quantityMinusFee.sub(_bAssetBalances[i]);
                 supplyBackToSaving.add(gapQuantities[borrowBAssetsIndex]);
                 borrowBAssets[borrowBAssetsIndex] = _bAssets[i];
