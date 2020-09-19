@@ -99,17 +99,17 @@ InitializableReentrancyGuard {
      * @param _recipient receipient of the newly minted mAsset tokens
      * @return hAssetMinted   Number of newly minted hAssets
      */
-    function mintTo(
-        address _bAsset,
-        uint256 _bAssetQuantity,
-        address _recipient
-    )
-    external
-    nonReentrant
-    returns (uint256 hAssetMinted)
-    {
-        return _mintTo(_bAsset, _bAssetQuantity, _recipient);
-    }
+//    function mintTo(
+//        address _bAsset,
+//        uint256 _bAssetQuantity,
+//        address _recipient
+//    )
+//    external
+//    nonReentrant
+//    returns (uint256 hAssetMinted)
+//    {
+//        return _mintTo(_bAsset, _bAssetQuantity, _recipient);
+//    }
 
 
     /**
@@ -150,39 +150,39 @@ InitializableReentrancyGuard {
     ****************************************/
 
     /** @dev Mint Single */
-    function _mintTo(
-        address _bAsset,
-        uint256 _bAssetQuantity,
-        address _recipient
-    )
-    internal
-    returns (uint256 hAssetMinted)
-    {
-        require(_recipient != address(0), "Must be a valid recipient");
-        require(_bAssetQuantity > 0, "Quantity must not be 0");
-
-        // check exist, get Basset detail
-        (bool bAssetExist, uint8 bAssetStatus) = honestBasketInterface.getBAssetStatus(_bAsset);
-        require(bAssetExist, "bAsset not exist in the Basket!");
-        // Validation
-        (bool mintValid, string memory reason) = bAssetValidator.validateMint(_bAsset, bAssetStatus, _bAssetQuantity);
-        require(mintValid, reason);
-
-        // transfer bAsset to basket
-        uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, _getBasketAddress(), _bAsset, false, _bAssetQuantity);
-        hAssetMinted = ERC20Detailed(_bAsset).standardize(quantityTransferred);
-        //        uint256 redeemFeeRate = honestFeeInterface.redeemFeeRate();
-        uint256 bonus = honestBonusInterface.calculateBonus(_bAsset, hAssetMinted, honestFeeInterface.redeemFeeRate());
-        if (bonus > 0) {
-            honestBonusInterface.addBonus(msg.sender, bonus);
-        }
-
-        // Mint the HAsset
-        _mint(_recipient, hAssetMinted);
-        emit Minted(msg.sender, _recipient, hAssetMinted, _bAsset, _bAssetQuantity);
-
-        return quantityTransferred;
-    }
+//    function _mintTo(
+//        address _bAsset,
+//        uint256 _bAssetQuantity,
+//        address _recipient
+//    )
+//    internal
+//    returns (uint256 hAssetMinted)
+//    {
+//        require(_recipient != address(0), "Must be a valid recipient");
+//        require(_bAssetQuantity > 0, "Quantity must not be 0");
+//
+//        // check exist, get Basset detail
+//        (bool bAssetExist, uint8 bAssetStatus) = honestBasketInterface.getBAssetStatus(_bAsset);
+//        require(bAssetExist, "bAsset not exist in the Basket!");
+//        // Validation
+//        (bool mintValid, string memory reason) = bAssetValidator.validateMint(_bAsset, bAssetStatus, _bAssetQuantity);
+//        require(mintValid, reason);
+//
+//        // transfer bAsset to basket
+//        uint256 quantityTransferred = HAssetHelpers.transferTokens(msg.sender, _getBasketAddress(), _bAsset, false, _bAssetQuantity);
+//        hAssetMinted = ERC20Detailed(_bAsset).standardize(quantityTransferred);
+//        //        uint256 redeemFeeRate = honestFeeInterface.redeemFeeRate();
+//        uint256 bonus = honestBonusInterface.calculateBonus(_bAsset, hAssetMinted, honestFeeInterface.redeemFeeRate());
+//        if (bonus > 0) {
+//            honestBonusInterface.addBonus(msg.sender, bonus);
+//        }
+//
+//        // Mint the HAsset
+//        _mint(_recipient, hAssetMinted);
+//        emit Minted(msg.sender, _recipient, hAssetMinted, _bAsset, _bAssetQuantity);
+//
+//        return quantityTransferred;
+//    }
 
     /** @dev Mint Multi */
     function _mintTo(address[] memory _bAssets, uint256[] memory _bAssetQuantities, address _recipient)
@@ -258,13 +258,13 @@ InitializableReentrancyGuard {
      * @param _recipient        Address to credit with withdrawn bAssets
      * @return hAssetRedeemed     Relative number of hAsset units burned to pay for the bAssets
      */
-    function redeemTo(address _bAsset, uint256 _bAssetQuantity, address _recipient)
-    external
-    nonReentrant
-    returns (uint256 hAssetRedeemed)
-    {
-        return _redeemTo(_bAsset, _bAssetQuantity, _recipient);
-    }
+//    function redeemTo(address _bAsset, uint256 _bAssetQuantity, address _recipient)
+//    external
+//    nonReentrant
+//    returns (uint256 hAssetRedeemed)
+//    {
+//        return _redeemTo(_bAsset, _bAssetQuantity, _recipient);
+//    }
 
     /**
      * @dev Credits a recipient with a certain quantity of selected bAssets, in exchange for burning the
@@ -318,15 +318,15 @@ InitializableReentrancyGuard {
     ****************************************/
 
     /** @dev Casting to arrays for use in redeemMulti func */
-    function _redeemTo(address _bAsset, uint256 _bAssetQuantity, address _recipient)
-    internal
-    returns (uint256 hAssetRedeemed){
-        address[] memory bAssets = new address[](1);
-        uint256[] memory quantities = new uint256[](1);
-        bAssets[0] = _bAsset;
-        quantities[0] = _bAssetQuantity;
-        return _redeemTo(bAssets, quantities, _recipient, false);
-    }
+//    function _redeemTo(address _bAsset, uint256 _bAssetQuantity, address _recipient)
+//    internal
+//    returns (uint256 hAssetRedeemed){
+//        address[] memory bAssets = new address[](1);
+//        uint256[] memory quantities = new uint256[](1);
+//        bAssets[0] = _bAsset;
+//        quantities[0] = _bAssetQuantity;
+//        return _redeemTo(bAssets, quantities, _recipient, false);
+//    }
 
     function _redeemToInProportion(uint256 _bAssetQuantity, address _recipient)
     internal
@@ -510,7 +510,7 @@ InitializableReentrancyGuard {
     }
 
     modifier onlyBasket() {
-        require(_basket() == msg.sender, "Must be basket");
+        require(address(honestBasketInterface) == msg.sender, "Must be basket");
         _;
     }
 
