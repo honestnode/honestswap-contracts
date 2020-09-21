@@ -162,7 +162,7 @@ contract HonestAssetManager is IHonestAssetManager, WhitelistAdminRole, Reentran
         uint[] memory amounts = new uint[](1);
         amounts[0] = ERC20Detailed(to).resume(ERC20Detailed(from).standardize(amount).sub(fee));
 
-        IHonestVault(_vaultContract).distributeManually(_msgSender(), assets, amounts, IHonestVault.Repository.ALL);
+        IHonestVault(_vaultContract).distributeManually(recipient, assets, amounts, IHonestVault.Repository.ALL);
     }
 
     function deposit(address to, uint amount)
