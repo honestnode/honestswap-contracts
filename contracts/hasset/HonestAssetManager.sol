@@ -25,8 +25,7 @@ contract HonestAssetManager is IHonestAssetManager, WhitelistAdminRole, Reentran
     event Redeemed(address indexed redeemer, uint input, address[] bAssets, uint[] outputs, address recipient);
     event Swapped(address indexed swapper, address from, address to, uint amount, address recipient);
 
-    event SwapFeeChanged(uint fee);
-    event RedeemFeeChanged(uint fee);
+    event FeeChanged(uint fee);
 
     address private _assetContract;
     address private _vaultContract;
@@ -115,7 +114,9 @@ contract HonestAssetManager is IHonestAssetManager, WhitelistAdminRole, Reentran
 
         IHonestAsset(_assetContract).burn(recipient, amount);
 
-        IHonestVault(_vaultContract).distributeProportionally(recipient, amount, IHonestVault.Repository.ALL);
+        (address[] memory assets, uint[] memory amounts) = IHonestVault(_vaultContract).distributeProportionally(recipient, amount, IHonestVault.Repository.ALL);
+
+        emit Redeemed(_msgSender(), amount, assets, amounts, recipient);
     }
 
     function redeemManually(address[] calldata bAssets, uint[] calldata amounts) external {
@@ -141,6 +142,8 @@ contract HonestAssetManager is IHonestAssetManager, WhitelistAdminRole, Reentran
         _chargeFee(total, feeRate);
 
         IHonestVault(_vaultContract).distributeManually(recipient, bAssets, amounts, IHonestVault.Repository.ALL);
+
+        emit Redeemed(_msgSender(), total, bAssets, amounts, recipient);
     }
 
     function swap(address from, address to, uint amount) external {
@@ -163,6 +166,8 @@ contract HonestAssetManager is IHonestAssetManager, WhitelistAdminRole, Reentran
         amounts[0] = ERC20Detailed(to).resume(ERC20Detailed(from).standardize(amount).sub(fee));
 
         IHonestVault(_vaultContract).distributeManually(recipient, assets, amounts, IHonestVault.Repository.ALL);
+
+        emit Swapped(_msgSender(), from, to, amount, recipient);
     }
 
     function deposit(address to, uint amount)
@@ -200,6 +205,8 @@ contract HonestAssetManager is IHonestAssetManager, WhitelistAdminRole, Reentran
     function _chargeFee(uint amount, uint feeRate) internal returns (uint) {
         uint fee = amount.mul(feeRate).div(uint(1e18));
         IHonestAsset(_assetContract).mint(_feeContract, fee);
+
+        emit FeeChanged(fee);
         return fee;
     }
 }
