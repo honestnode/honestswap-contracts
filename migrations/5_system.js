@@ -1,48 +1,55 @@
+const {BigNumbers, Deployer}  = require('../test/common/utils');
+
 const Nexus = artifacts.require('Nexus');
+const HonestAsset = artifacts.require('HonestAsset');
+const HonestAssetManager = artifacts.require('HonestAssetManager');
+const HonestVault = artifacts.require('HonestVault');
+
 const ChainlinkIntegration = artifacts.require('ChainlinkIntegration');
 const YearnV2Integration = artifacts.require('YearnV2Integration');
 const HonestBonus = artifacts.require('HonestBonus');
 const HonestFee = artifacts.require('HonestFee');
-const HonestBasket = artifacts.require('HonestBasket');
 const HonestSavings = artifacts.require('HonestSavings');
-const HAsset = artifacts.require('HAsset');
-const BAssetValidator = artifacts.require('BAssetValidator');
 const MockDAI = artifacts.require('MockDAI');
 const MockUSDT = artifacts.require('MockUSDT');
 const MockUSDC = artifacts.require('MockUSDC');
 const MockTUSD = artifacts.require('MockTUSD');
 
 module.exports = function (deployer) {
+
   deployer.then(async () => {
-    await deployer.deploy(HonestBonus);
-    await deployer.deploy(HonestFee);
 
-    await deployer.deploy(BAssetValidator);
-    await deployer.deploy(HonestSavings);
-    await deployer.deploy(HAsset);
-    await deployer.deploy(HonestBasket);
+    const fee = await Deployer.deploy(deployer, HonestFee);
+    const bonus = await Deployer.deploy(deployer, HonestBonus);
 
-    const nexus = await Nexus.deployed();
-    const chainLink = await ChainlinkIntegration.deployed();
-    const yearn = await YearnV2Integration.deployed();
-    const hAsset = await HAsset.deployed();
-    const basket = await HonestBasket.deployed();
-    const bonus = await HonestBonus.deployed();
-    const fee = await HonestFee.deployed();
-    const savings = await HonestSavings.deployed();
-    const validator = await BAssetValidator.deployed();
+    const hAssetManager = await Deployer.deploy(deployer, HonestAssetManager);
+    const vault = await Deployer.deploy(deployer, HonestVault);
+    const savings = await Deployer.deploy(deployer, HonestSavings);
+
+    const hAsset = await HonestAsset.deployed();
     const dai = await MockDAI.deployed();
     const tusd = await MockTUSD.deployed();
     const usdc = await MockUSDC.deployed();
     const usdt = await MockUSDT.deployed();
+    const chainLink = await ChainlinkIntegration.deployed();
+    const yearn = await YearnV2Integration.deployed();
+
+    console.log('=== 5.system deployed ===');
+    console.log(`HonestFee:\t${fee.address}`);
+    console.log(`HonestBonus:\t${bonus.address}`);
+    console.log(`AssetManager:\t${hAssetManager.address}`);
+    console.log(`HonestVault:\t${vault.address}`);
+    console.log(`HonestSavings:\t${savings.address}`);
 
     return Promise.all([
       fee.initialize(hAsset.address),
       bonus.initialize(chainLink.address),
-      basket.initialize(nexus.address, hAsset.address, [dai.address, tusd.address, usdc.address, usdt.address],
-        savings.address, fee.address, validator.address),
-      savings.initialize(hAsset.address, basket.address, yearn.address, fee.address, bonus.address),
-      hAsset.initialize('hUSD', 'hUSD', nexus.address, basket.address, savings.address, bonus.address, fee.address, validator.address)
+      hAssetManager.initialize(hAsset.address, vault.address, fee.address, bonus.address),
+      vault.initialize(hAsset.address, savings.address, [dai.address, tusd.address, usdc.address, usdt.address]),
+      savings.initialize(hAsset.address, vault.address, yearn.address, fee.address, bonus.address),
+      hAsset.addWhitelistAdmin(hAssetManager.address),
+      vault.addWhitelistAdmin(hAssetManager.address),
+      hAssetManager.addWhitelistAdmin(savings.address)
     ]);
   });
 };

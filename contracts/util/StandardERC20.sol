@@ -22,6 +22,10 @@ library StandardERC20 {
         return standardize(token, balance);
     }
 
+    function standardApprove(ERC20Detailed token, address to, uint256 standardAmount) internal {
+        return IERC20(token).safeApprove(to, resume(token, standardAmount));
+    }
+
     function standardTransfer(ERC20Detailed token, address to, uint256 standardAmount) internal {
         return IERC20(token).safeTransfer(to, resume(token, standardAmount));
     }

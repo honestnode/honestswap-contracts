@@ -1,6 +1,6 @@
 const BN = require('bn.js');
 const {expectRevert} = require('@openzeppelin/test-helpers');
-const MockHAsset = artifacts.require('MockHAsset');
+const HonestAsset = artifacts.require('HonestAsset');
 const MockHonestBasket = artifacts.require('MockHonestBasket');
 const MockHonestFee = artifacts.require('MockHonestFee');
 const HonestBonus = artifacts.require('HonestBonus');
@@ -40,7 +40,7 @@ contract('HonestSavings', async (accounts) => {
     tusd = await MockTUSD.deployed();
     usdc = await MockUSDC.deployed();
     usdt = await MockUSDT.deployed();
-    hAsset = await MockHAsset.new();
+    hAsset = await HonestAsset.new();
     basket = await MockHonestBasket.new();
     await basket.initialize(hAsset.address);
     await hAsset.mint(basket.address, shift(1000));

@@ -5,7 +5,7 @@ const MockUSDC = artifacts.require('MockUSDC');
 const MockTUSD = artifacts.require('MockTUSD');
 const MockDAI = artifacts.require('MockDAI');
 const BAssetValidatorArtifact = artifacts.require('BAssetValidator');
-const MockHAsset = artifacts.require('MockHAsset');
+const HonestAsset = artifacts.require('HonestAsset');
 const HonestBasket = artifacts.require('HonestBasket');
 const MockHonestSaving = artifacts.require('MockHonestSaving');
 const MockHonestFee = artifacts.require('MockHonestFee');
@@ -43,7 +43,7 @@ contract('HonestBasket', async (accounts) => {
         tusd = await MockTUSD.new();
         dai = await MockDAI.new();
 
-        hAsset = await MockHAsset.new();
+        hAsset = await HonestAsset.new();
         savings = await MockHonestSaving.new();
         fee = await MockHonestFee.new();
         basket = await HonestBasket.new();

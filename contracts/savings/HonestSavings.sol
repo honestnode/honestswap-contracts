@@ -7,7 +7,7 @@ import {ERC20Detailed} from '@openzeppelin/contracts/token/ERC20/ERC20Detailed.s
 import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import {Address} from '@openzeppelin/contracts/utils/Address.sol';
 
-import {IHonestBasket} from "../interfaces/IHonestBasket.sol";
+import {IHonestAssetManager} from "../interfaces/IHonestAssetManager.sol";
 import {IHonestBonus} from "../interfaces/IHonestBonus.sol";
 import {IHonestFee} from '../interfaces/IHonestFee.sol';
 import {IHonestSavings} from "../interfaces/IHonestSavings.sol";
@@ -26,7 +26,7 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
     event SavingsRedeemed(address indexed account, uint256 shares, uint256 amount);
 
     address private _hAsset;
-    address private _basket;
+    address private _hAssetManager;
     address private _investmentIntegration;
     address private _fee;
     address private _bonus;
@@ -41,11 +41,11 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
     int256 private _apy;
 
     function initialize(
-        address _hAssetContract, address _basketContract, address _investmentContract,
+        address _hAssetContract, address _hAssetManagerContract, address _investmentContract,
         address _feeContract, address _bonusContract)
     external onlyWhitelistAdmin {
         setHAssetContract(_hAssetContract);
-        setBasketContract(_basketContract);
+        setHonestAssetManager(_hAssetManagerContract);
         setInvestmentIntegrationContract(_investmentContract);
         setFeeContract(_feeContract);
         setBonusContract(_bonusContract);
@@ -57,9 +57,9 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         _hAsset = _hAssetContract;
     }
 
-    function setBasketContract(address _basketContract) public onlyWhitelistAdmin {
-        require(_basketContract != address(0), "address must be valid");
-        _basket = _basketContract;
+    function setHonestAssetManager(address contractAddress) public onlyWhitelistAdmin {
+        require(contractAddress != address(0), "address must be valid");
+        _hAssetManager = contractAddress;
     }
 
     function setInvestmentIntegrationContract(address _investmentContract) public onlyWhitelistAdmin {
@@ -81,8 +81,8 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         return _hAsset;
     }
 
-    function basketContract() external view returns (address) {
-        return _basket;
+    function honestAssetManager() external view returns (address) {
+        return _hAssetManager;
     }
 
     function investmentIntegrationContract() external view returns (address) {
@@ -112,9 +112,6 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
             _invest(_amount);
         } else {
             shares = _invest(_amount).add(bonus);
-        }
-        if (bonus > 0) {
-            IHonestBonus(_bonus).subtractBonus(_msgSender(), bonus);
         }
 
         _shares[_msgSender()] = _shares[_msgSender()].add(shares);
@@ -171,12 +168,16 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
     }
 
     function sharePrice() public view returns (uint256) {
-        uint256 pool = IInvestmentIntegration(_investmentIntegration).totalBalance().add(IHonestFee(_fee).totalFee());
+        uint256 pool = totalValue();
         uint256 total = totalShares();
-        if (total == 0) {
+        if (total == 0 || pool == 0) {
             return 0;
         }
         return pool.mul(uint256(1e18)).div(total);
+    }
+
+    function totalValue() public view returns (uint256) {
+        return IInvestmentIntegration(_investmentIntegration).totalBalance().add(IHonestFee(_fee).totalFee());
     }
 
     function updateApy() public onlyWhitelistAdmin {
@@ -208,7 +209,7 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         return _apy;
     }
 
-    function swap(address _account, address[] calldata _bAssets, uint256[] calldata _borrows, address[] calldata _sAssets, uint256[] calldata _supplies) external {
+    function swap(address _account, address[] calldata _bAssets, uint256[] calldata _borrows, address[] calldata _sAssets,  uint256[] calldata _supplies) external {
         require(_bAssets.length == _borrows.length, "mismatch borrows amounts length");
         require(_sAssets.length == _supplies.length, "mismatch supplies amounts length");
 
@@ -216,7 +217,7 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         uint256 borrows = _giveSwapBorrows(_account, _bAssets, _borrows);
 
         require(borrows > 0, "amounts must greater than 0");
-        require(borrows == supplies, "mismatch amounts");
+//        require(borrows == supplies, "mismatch amounts");
     }
 
     function _takeSwapSupplies(address[] memory _sAssets, uint256[] memory _supplies) internal returns (uint256) {
@@ -225,10 +226,11 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
             if (_supplies[i] == 0) {
                 continue;
             }
-            IERC20(_sAssets[i]).safeTransferFrom(_msgSender(), address(this), _supplies[i]);
-            IERC20(_sAssets[i]).safeApprove(_investmentIntegration, _supplies[i]);
-            IInvestmentIntegration(_investmentIntegration).invest(_sAssets[i], _supplies[i]);
-            supplies = supplies.add(ERC20Detailed(_sAssets[i]).standardize(_supplies[i]));
+            uint256 amount = ERC20Detailed(_sAssets[i]).resume(_supplies[i]);
+            IERC20(_sAssets[i]).safeTransferFrom(_msgSender(), address(this), amount);
+            IERC20(_sAssets[i]).safeApprove(_investmentIntegration, amount);
+            IInvestmentIntegration(_investmentIntegration).invest(_sAssets[i], amount);
+            supplies = supplies.add(_supplies[i]);
         }
         return supplies;
     }
@@ -239,38 +241,41 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
             if (_borrows[i] == 0) {
                 continue;
             }
-            uint256 standardAmount = ERC20Detailed(_bAssets[i]).standardize(_borrows[i]);
-            uint256 shares = standardAmount.mul(uint256(1e18)).div(IInvestmentIntegration(_investmentIntegration).priceOf(_bAssets[i]));
+            uint256 shares = _borrows[i].mul(uint256(1e18)).div(IInvestmentIntegration(_investmentIntegration).priceOf(_bAssets[i]));
             uint256 amount = IInvestmentIntegration(_investmentIntegration).collect(_bAssets[i], shares);
             IERC20(_bAssets[i]).safeTransfer(_account, ERC20Detailed(_bAssets[i]).resume(amount));
-            borrows = borrows.add(standardAmount);
+            borrows = borrows.add(_borrows[i]);
         }
         return borrows;
     }
 
-    function investments() external view returns (address[] memory, uint256[] memory) {
-        (address[] memory _assets, uint256[] memory _balances, uint256 _) = IInvestmentIntegration(_investmentIntegration).balances();
-        return (_assets, _balances);
+    function investments() external view returns (address[] memory, uint256[] memory, uint256) {
+        address[] memory assets = IInvestmentIntegration(_investmentIntegration).assets();
+        uint256[] memory amounts = new uint256[](assets.length);
+        uint256 total;
+        for (uint256 i = 0; i < assets.length; ++i) {
+            amounts[i] = IInvestmentIntegration(_investmentIntegration).balanceOf(assets[i]);
+            total = total.add(amounts[i]);
+        }
+        return (assets, amounts, total);
     }
 
-    function investmentOf(address[] calldata _bAssets) external view returns (uint256[] memory) {
-        uint256[] memory amounts = new uint256[](_bAssets.length);
-        for (uint256 i = 0; i < _bAssets.length; ++i) {
-            amounts[i] = IInvestmentIntegration(_investmentIntegration).balanceOf(_bAssets[i]);
-        }
-        return amounts;
+    function investmentOf(address bAsset) external view returns (uint256) {
+        return IInvestmentIntegration(_investmentIntegration).balanceOf(bAsset);
     }
 
     function _invest(uint256 _amount) internal returns (uint256) {
-        IERC20(_hAsset).approve(_basket, _amount);
+        IERC20(_hAsset).approve(_hAssetManager, _amount);
         address[] memory assets = IInvestmentIntegration(_investmentIntegration).assets();
-        uint256[] memory amounts = IHonestBasket(_basket).swapBAssets(_investmentIntegration, _amount, assets);
+        uint256[] memory amounts = IHonestAssetManager(_hAssetManager).deposit(_investmentIntegration, _amount);
 
         uint256 total;
         for (uint256 i = 0; i < assets.length; ++i) {
-            uint256 actualAmount = ERC20Detailed(assets[i]).resume(amounts[i]);
-            IERC20(assets[i]).safeApprove(_investmentIntegration, actualAmount);
-            total = total.add(IInvestmentIntegration(_investmentIntegration).invest(assets[i], actualAmount));
+            if (amounts[i] > 0) {
+                uint256 actualAmount = ERC20Detailed(assets[i]).resume(amounts[i]);
+                IERC20(assets[i]).safeApprove(_investmentIntegration, actualAmount);
+                total = total.add(IInvestmentIntegration(_investmentIntegration).invest(assets[i], actualAmount));
+            }
         }
         return total;
     }
@@ -304,13 +309,13 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
             amounts[i] = IInvestmentIntegration(_investmentIntegration).collect(bAssets[i], shares);
             totalAmount = totalAmount.add(amounts[i]);
             amounts[i] = ERC20Detailed(bAssets[i]).resume(amounts[i]);
-            IERC20(bAssets[i]).safeApprove(_basket, amounts[i]);
+            IERC20(bAssets[i]).safeApprove(_hAssetManager, amounts[i]);
         }
         //require(gap == 0, 'failed in gap share');
         if (totalAmount > _amount) {
-            IHonestBasket(_basket).distributeHAssets(_account, bAssets, amounts, totalAmount.sub(_amount));
+            IHonestAssetManager(_hAssetManager).withdraw(_account, bAssets, amounts, totalAmount.sub(_amount));
         } else {
-            IHonestBasket(_basket).distributeHAssets(_account, bAssets, amounts, 0);
+            IHonestAssetManager(_hAssetManager).withdraw(_account, bAssets, amounts, 0);
         }
         return totalAmount;
     }

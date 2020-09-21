@@ -19,6 +19,8 @@ interface IHonestSavings {
 
     function sharePrice() external view returns (uint256);
 
+    function totalValue() external view returns (uint256);
+
     function updateApy() external;
 
     function apy() external view returns (int256);
@@ -26,7 +28,7 @@ interface IHonestSavings {
     function swap(address _account, address[] calldata _bAssets, uint256[] calldata _borrows, address[] calldata _sAssets, uint256[] calldata _supplies)
     external;
 
-    function investments() external view returns (address[] memory, uint256[] memory _amounts);
+    function investments() external view returns (address[] memory, uint256[] memory, uint256);
 
-    function investmentOf(address[] calldata _bAssets) external view returns (uint256[] memory);
+    function investmentOf(address bAsset) external view returns (uint256);
 }

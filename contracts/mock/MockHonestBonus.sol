@@ -8,6 +8,14 @@ contract MockHonestBonus is IHonestBonus {
 
     function setPriceIntegration(address _contract) external {}
 
+    function getPriceIntegration() external view returns (address) {
+        return address(0);
+    }
+
+    function hasBonus(address asset, uint256 _fee) external view returns (bool) {
+        return false;
+    }
+
     function calculateBonus(address _bAsset, uint256 _amount, uint256 _fee) external view returns (uint256) {
         return 0;
     }

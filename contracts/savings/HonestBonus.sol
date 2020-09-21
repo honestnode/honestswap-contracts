@@ -28,6 +28,16 @@ contract HonestBonus is IHonestBonus, WhitelistedRole {
         _priceIntegration = _contract;
     }
 
+    function getPriceIntegration() external view returns (address) {
+        return _priceIntegration;
+    }
+
+    function hasBonus(address asset, uint256 fee) external view returns (bool) {
+        require(_priceIntegration != address(0), 'price integration not initialized');
+        uint256 value = IAssetPriceIntegration(_priceIntegration).getPrice(asset);
+        return value > fee.add(1e18);
+    }
+
     function calculateBonus(address _bAsset, uint256 _amount, uint256 _fee) external view returns (uint256) {
         require(_priceIntegration != address(0), 'price integration not initialized');
         uint256 value = IAssetPriceIntegration(_priceIntegration).getPrice(_bAsset);
