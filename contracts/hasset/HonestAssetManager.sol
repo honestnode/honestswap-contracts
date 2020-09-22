@@ -114,7 +114,7 @@ contract HonestAssetManager is IHonestAssetManager, WhitelistAdminRole, Reentran
 
         IHonestAsset(_assetContract).burn(recipient, amount);
 
-        (address[] memory assets, uint[] memory amounts) = IHonestVault(_vaultContract).distributeProportionally(recipient, amount, IHonestVault.Repository.ALL);
+        (address[] memory assets, uint[] memory amounts) = IHonestVault(_vaultContract).distributeProportionally(recipient, amount, IHonestVault.Repository.VAULT);
 
         emit Redeemed(_msgSender(), amount, assets, amounts, recipient);
     }
@@ -132,7 +132,8 @@ contract HonestAssetManager is IHonestAssetManager, WhitelistAdminRole, Reentran
         uint total;
         for (uint i = 0; i < bAssets.length; ++i) {
             if (amounts[i] > 0) {
-                total = total.add(ERC20Detailed(bAssets[i]).standardize(amounts[i]));
+                amounts[i] = ERC20Detailed(bAssets[i]).standardize(amounts[i]);
+                total = total.add(amounts[i]);
             }
         }
 
@@ -163,7 +164,7 @@ contract HonestAssetManager is IHonestAssetManager, WhitelistAdminRole, Reentran
         address[] memory assets = new address[](1);
         assets[0] = to;
         uint[] memory amounts = new uint[](1);
-        amounts[0] = ERC20Detailed(to).resume(ERC20Detailed(from).standardize(amount).sub(fee));
+        amounts[0] = ERC20Detailed(from).standardize(amount).sub(fee);
 
         IHonestVault(_vaultContract).distributeManually(recipient, assets, amounts, IHonestVault.Repository.ALL);
 

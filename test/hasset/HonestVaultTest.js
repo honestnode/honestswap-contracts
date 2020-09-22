@@ -177,7 +177,7 @@ contract('HonestVault', async (accounts) => {
 
       await vault.distributeManually(dummy1,
         [dai.address, tusd.address, usdc.address, usdt.address],
-        [BigNumbers.shift(100), BigNumbers.shift(100), BigNumbers.shift(100, 6), BigNumbers.shift(100, 6)],
+        [BigNumbers.shift(100), BigNumbers.shift(100), BigNumbers.shift(100), BigNumbers.shift(100)],
         0
       );
 
@@ -213,7 +213,7 @@ contract('HonestVault', async (accounts) => {
 
       await vault.distributeManually(dummy1,
         [dai.address, usdt.address],
-        [BigNumbers.shift(100), BigNumbers.shift(100, 6)],
+        [BigNumbers.shift(100), BigNumbers.shift(100)],
         0
       );
 

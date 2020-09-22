@@ -130,7 +130,7 @@ contract HonestVault is IHonestVault, WhitelistAdminRole {
         for (uint i = 0; i < assets.length; ++i) {
             require(amounts[i] > 0, 'amount must be greater than 0');
             require(amounts[i] <= _balanceOf(assets[i], repository), 'insufficient balance');
-            uint gap = (repository == Repository.SAVINGS) ? ERC20Detailed(assets[i]).standardize(amounts[i]) : _distributeVault(assets[i], account, ERC20Detailed(assets[i]).standardize(amounts[i]));
+            uint gap = (repository == Repository.SAVINGS) ? amounts[i] : _distributeVault(assets[i], account, amounts[i]);
             gapAmounts[i] = gap;
             gaps = gaps.add(gap);
         }
@@ -180,8 +180,10 @@ contract HonestVault is IHonestVault, WhitelistAdminRole {
         if (amount <= vaultBalance) {
             ERC20Detailed(asset).standardTransfer(to, amount);
             return 0;
+        } else {
+            ERC20Detailed(asset).standardTransfer(to, vaultBalance);
+            return amount.sub(vaultBalance);
         }
-        return amount.sub(vaultBalance);
     }
 
     function _distributeSavings(address account, address[] memory bAssets, uint[] memory borrows, uint total) internal {

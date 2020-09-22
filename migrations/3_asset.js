@@ -26,18 +26,6 @@ module.exports = (deployer, network, accounts) => {
     const yUSDC = await Deployer.deploy(deployer, MockYUSDC, usdc.address);
     const yUSDT = await Deployer.deploy(deployer, MockYUSDT, usdt.address);
 
-    console.log('3.asset deployed ==>');
-    console.log(`> HonestAsset:            ${hAsset.address}`);
-    console.log(`> MockDAI:                ${dai.address}`);
-    console.log(`> MockTUSD:               ${tusd.address}`);
-    console.log(`> MockUSDC:               ${usdc.address}`);
-    console.log(`> MockUSDT:               ${usdt.address}`);
-    console.log(`> MockYDAI:               ${yDAI.address}`);
-    console.log(`> MockYTUSD:              ${yTUSD.address}`);
-    console.log(`> MockYUSDC:              ${yUSDC.address}`);
-    console.log(`> MockYUSDT:              ${yUSDT.address}`);
-    console.log();
-
     return Promise.all([
       dai.mint(yDAI.address, BigNumbers.shift(1000)),
       tusd.mint(yTUSD.address, BigNumbers.shift(1000)),
