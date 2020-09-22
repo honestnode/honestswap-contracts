@@ -34,19 +34,21 @@ module.exports = function (deployer) {
     const chainLink = await ChainlinkIntegration.deployed();
     const yearn = await YearnV2Integration.deployed();
 
-    console.log('=== 5.system deployed ===');
-    console.log(`HonestFee:\t${fee.address}`);
-    console.log(`HonestBonus:\t${bonus.address}`);
-    console.log(`AssetManager:\t${hAssetManager.address}`);
-    console.log(`HonestVault:\t${vault.address}`);
-    console.log(`HonestSavings:\t${savings.address}`);
+    console.log('5.system deployed ==>');
+    console.log(`> HonestFee:              ${fee.address}`);
+    console.log(`> HonestBonus:            ${bonus.address}`);
+    console.log(`> AssetManager:           ${hAssetManager.address}`);
+    console.log(`> HonestVault:            ${vault.address}`);
+    console.log(`> HonestSavings:          ${savings.address}`);
+    console.log();
 
     return Promise.all([
       fee.initialize(hAsset.address),
       bonus.initialize(chainLink.address),
       hAssetManager.initialize(hAsset.address, vault.address, fee.address, bonus.address),
       vault.initialize(hAsset.address, savings.address, [dai.address, tusd.address, usdc.address, usdt.address]),
-      savings.initialize(hAsset.address, vault.address, yearn.address, fee.address, bonus.address),
+      savings.initialize(hAsset.address, hAssetManager.address, yearn.address, fee.address, bonus.address),
+      yearn.addWhitelisted(savings.address),
       hAsset.addWhitelistAdmin(hAssetManager.address),
       vault.addWhitelistAdmin(hAssetManager.address),
       hAssetManager.addWhitelistAdmin(savings.address)

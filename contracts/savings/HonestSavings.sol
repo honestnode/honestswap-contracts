@@ -117,6 +117,10 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
         _shares[_msgSender()] = _shares[_msgSender()].add(shares);
         _totalShares = _totalShares.add(shares);
 
+        if (bonus > 0) {
+            IHonestBonus(_bonus).subtractBonus(_msgSender(), bonus);
+        }
+
         _updateApy();
 
         emit SavingsDeposited(_msgSender(), _amount, shares);
@@ -265,9 +269,9 @@ contract HonestSavings is IHonestSavings, WhitelistAdminRole {
     }
 
     function _invest(uint256 _amount) internal returns (uint256) {
-        IERC20(_hAsset).approve(_hAssetManager, _amount);
+        IERC20(_hAsset).safeApprove(_hAssetManager, _amount);
         address[] memory assets = IInvestmentIntegration(_investmentIntegration).assets();
-        uint256[] memory amounts = IHonestAssetManager(_hAssetManager).deposit(_investmentIntegration, _amount);
+        uint256[] memory amounts = IHonestAssetManager(_hAssetManager).deposit(address(this), _amount);
 
         uint256 total;
         for (uint256 i = 0; i < assets.length; ++i) {

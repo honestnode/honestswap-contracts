@@ -39,14 +39,15 @@ module.exports = function (deployer, network, accounts) {
     const chainlink = await Deployer.deploy(deployer, ChainlinkIntegration);
     const yearn = await Deployer.deploy(deployer, YearnV2Integration);
 
-    console.log('=== 4.integration deployed ===');
-    console.log(`MockETH2USDFeeds:\t${ethFeeds.address}`);
-    console.log(`MockDAI2USDFeeds:\t${daiFeeds.address}`);
-    console.log(`MockTUSD2ETHFeeds:\t${tusdFeeds.address}`);
-    console.log(`MockUSDC2ETHFeeds:\t${usdcFeeds.address}`);
-    console.log(`MockUSDT2ETHFeeds:\t${usdtFeeds.address}`);
-    console.log(`ChainlinkIntegration:\t${chainlink.address}`);
-    console.log(`YearnV2Integration:\t${yearn.address}`);
+    console.log('4.integration deployed ==>');
+    console.log(`> MockETH2USDFeeds:       ${ethFeeds.address}`);
+    console.log(`> MockDAI2USDFeeds:       ${daiFeeds.address}`);
+    console.log(`> MockTUSD2ETHFeeds:      ${tusdFeeds.address}`);
+    console.log(`> MockUSDC2ETHFeeds:      ${usdcFeeds.address}`);
+    console.log(`> MockUSDT2ETHFeeds:      ${usdtFeeds.address}`);
+    console.log(`> ChainlinkIntegration:   ${chainlink.address}`);
+    console.log(`> YearnV2Integration:     ${yearn.address}`);
+    console.log();
 
     return Promise.all([
       chainlink.initialize(
