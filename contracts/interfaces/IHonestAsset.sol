@@ -1,18 +1,14 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: LGPL-3.0-or-later
 
-import {ERC20} from '@openzeppelin/contracts/token/ERC20/ERC20.sol';
-import {ERC20Detailed} from '@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol';
-import {WhitelistAdminRole} from '@openzeppelin/contracts/access/roles/WhitelistAdminRole.sol';
+pragma solidity ^0.6.0;
 
-contract IHonestAsset is ERC20, ERC20Detailed, WhitelistAdminRole {
+import {ERC20UpgradeSafe} from '@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20.sol';
 
-    function mint(address account, uint256 amount) public onlyWhitelistAdmin returns (bool) {
-        _mint(account, amount);
-        return true;
-    }
+abstract contract IHonestAsset is ERC20UpgradeSafe {
 
-    function burn(address account, uint256 amount) public onlyWhitelistAdmin returns (bool) {
-        _burnFrom(account, amount);
-        return true;
-    }
+    function initialize(string memory name, string memory symbol) external virtual;
+
+    function mint(address account, uint amount) external virtual returns (bool);
+
+    function burn(address account, uint amount) external virtual returns (bool);
 }
