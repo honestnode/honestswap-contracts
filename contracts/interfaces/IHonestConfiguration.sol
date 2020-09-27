@@ -12,15 +12,21 @@ interface IHonestConfiguration {
         address investment;
     }
 
-    function initialize(address asset, address[] calldata bAssets, IAssetPriceIntegration.FeedsTarget[] calldata bAssetPriceTargets, address[] calldata bAssetPrices, address[] calldata bAssetInvestments, uint swapFeeRate, uint redeemFeeRate) external;
-
     function honestAsset() external view returns (address);
-
-    function setHonestAsset(address asset) external;
 
     function basketAssets() external view returns (address[] memory, bool[] memory);
 
     function activeBasketAssets() external view returns (address[] memory);
+
+    function basketAssetPriceIntegration(address asset) external view returns (uint8, address);
+
+    function basketAssetInvestmentIntegration(address asset) external view returns (address);
+
+    function swapFeeRate() external view returns (uint);
+
+    function redeemFeeRate() external view returns (uint);
+
+    function setHonestAsset(address asset) external;
 
     function addBasketAsset(address asset, IAssetPriceIntegration.FeedsTarget bAssetPriceTarget, address bAssetPrice, address bAssetInvestment) external;
 
@@ -30,11 +36,7 @@ interface IHonestConfiguration {
 
     function deactivateBasketAsset(address asset) external;
 
-    function swapFeeRate() external returns (uint);
-
     function setSwapFeeRate(uint feeRate) external;
-
-    function redeemFeeRate() external returns (uint);
 
     function setRedeemFeeRate(uint feeRate) external;
 }

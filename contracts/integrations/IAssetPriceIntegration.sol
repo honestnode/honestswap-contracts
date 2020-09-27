@@ -6,13 +6,15 @@ interface IAssetPriceIntegration {
 
     enum FeedsTarget {USD, ETH}
 
-    function initialize(FeedsTarget[] calldata _types, address[] calldata _assets, address[] calldata _feedsContracts) external;
+    function honestConfiguration() external view returns (address);
 
-    function register(FeedsTarget _type, address _asset, address _feedsContract) external;
+    function ethPriceFeeds() external view returns (address);
 
-    function deregister(FeedsTarget _type, address _asset) external;
+    function getPrice(address asset) external view returns (uint);
 
-    function getPrice(address _asset) external view returns (uint);
+    function getPrices(address[] calldata assets) external view returns (uint[] memory);
 
-    function getPrices(address[] calldata _assets) external view returns (uint[] memory);
+    function setHonestConfiguration(address configuration) external;
+
+    function setEthPriceFeeds(address feeds) external;
 }

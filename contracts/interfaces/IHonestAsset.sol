@@ -6,8 +6,6 @@ import {ERC20UpgradeSafe} from '@openzeppelin/contracts-ethereum-package/contrac
 
 abstract contract IHonestAsset is ERC20UpgradeSafe {
 
-    function initialize(string memory name, string memory symbol) external virtual;
-
     function mint(address account, uint amount) external virtual returns (bool);
 
     function burn(address account, uint amount) external virtual returns (bool);
