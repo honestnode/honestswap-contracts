@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+
 pragma solidity ^0.6.0;
 
 import {ERC20UpgradeSafe} from '@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20.sol';
@@ -6,9 +8,9 @@ import {IHonestAsset} from "./interfaces/IHonestAsset.sol";
 
 contract HonestAsset is IHonestAsset, AbstractHonestContract {
 
-    function initialize(string memory name, string memory symbol) external override initializer() {
+    function initialize(string memory name, string memory symbol) external initializer() {
+        super.initialize();
         __ERC20_init(name, symbol);
-        __AccessControl_init_unchained();
     }
 
     function mint(address account, uint amount) external override onlyAssetManager returns (bool) {

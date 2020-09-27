@@ -13,6 +13,10 @@ abstract contract AbstractHonestContract is Initializable, AccessControlUpgradeS
     bytes32 public constant SAVINGS = keccak256("HONEST_SAVINGS");
     bytes32 public constant GOVERNOR = keccak256("HONEST_GOVERNOR");
 
+    function initialize() internal {
+        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
+    }
+
     modifier onlyAssetManager {
         require(hasRole(ASSET_MANAGER, msg.sender), "AccessControl: caller is not the AssetManager contract");
         _;
