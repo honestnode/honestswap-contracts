@@ -4,8 +4,6 @@ import {Contract, ContractFactory} from 'ethers';
 
 export abstract class HonestContractDeployer {
 
-  public abstract async deployContracts(): Promise<Contract>;
-
   protected async deploy(name: string, ...args: any[]): Promise<Contract> {
     const contract: ContractFactory = await ethers.getContractFactory(name);
     return await contract.deploy(...args);

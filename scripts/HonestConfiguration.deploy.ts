@@ -1,19 +1,16 @@
-import {ethers, upgrades} from '@nomiclabs/buidler';
+import {ethers} from '@nomiclabs/buidler';
 import {Contract} from 'ethers';
-import {honestAssetDeployer} from './HonestAsset.deploy';
 import {HonestContractDeployer} from './HonestContract.deploy';
 
 export class HonestConfigurationDeployer extends HonestContractDeployer {
 
-  public async deployContracts(): Promise<Contract> {
-    const honestAsset = await honestAssetDeployer.deployContracts();
+  public async deployContracts(honestAsset: Contract): Promise<Contract> {
     const basketAssets = await this.deployBasketAssets();
     const prices = await this.deployPriceFeeds();
     const investments = await this.deployInvestments(basketAssets);
-    const HonestConfiguration = await ethers.getContractFactory('HonestConfiguration');
-    return await upgrades.deployProxy(HonestConfiguration,
-      [honestAsset.address, basketAssets.map(c => c.address), prices.map(p => p.target), prices.map(p => p.feeds), investments, ethers.utils.parseUnits('1', 16), ethers.utils.parseUnits('1', 16)],
-      {unsafeAllowCustomTypes: true});
+    return this.deployUpgradable('HonestConfiguration',
+      honestAsset.address, basketAssets.map(c => c.address), prices.map(p => p.target), prices.map(p => p.feeds),
+      investments, ethers.utils.parseUnits('1', 16), ethers.utils.parseUnits('1', 16));
   }
 
   public async deployBasketAssets(): Promise<Contract[]> {

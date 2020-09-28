@@ -13,7 +13,7 @@ abstract contract AbstractHonestContract is Initializable, AccessControlUpgradeS
     bytes32 public constant SAVINGS = keccak256("HONEST_SAVINGS");
     bytes32 public constant GOVERNOR = keccak256("HONEST_GOVERNOR");
 
-    function initialize() internal {
+    function initialize() internal initializer() {
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
     }
 

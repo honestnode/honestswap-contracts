@@ -9,7 +9,7 @@ describe('HonestAsset', () => {
   before(async function () {
     supervisor = await (await ethers.getSigners())[0].getAddress();
     dummy = await (await ethers.getSigners())[1].getAddress();
-    honestAsset = honestAsset = await honestAssetDeployer.deployContracts();
+    honestAsset = await honestAssetDeployer.deployContracts();
     role = await honestAsset.ASSET_MANAGER();
   });
 

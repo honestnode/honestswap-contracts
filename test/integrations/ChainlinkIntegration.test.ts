@@ -1,24 +1,17 @@
-import {ethers, upgrades} from '@nomiclabs/buidler';
 import {expect} from 'chai';
 import {Contract, ContractFactory} from 'ethers';
+import {honestAssetDeployer} from '../../scripts/HonestAsset.deploy';
 import {honestConfigurationDeployer} from '../../scripts/HonestConfiguration.deploy';
+import {chainlinkIntegrationDeployer} from '../../scripts/integrations/ChainlinkIntegration.deploy';
 
 describe('ChainlinkIntegration', () => {
 
   let honestConfiguration: Contract, chainlinkIntegration: Contract;
 
-  const deployContract = async (name: string, ...args: any[]): Promise<Contract> => {
-    const contract: ContractFactory = await ethers.getContractFactory(name);
-    return await contract.deploy(...args);
-  };
-
   const deployContracts = async () => {
-    honestConfiguration = await honestConfigurationDeployer.deployContracts();
-    const ethPriceFeeds = await deployContract('MockETH2USDFeeds');
-    const ChainlinkIntegration = await ethers.getContractFactory('ChainlinkIntegration');
-    chainlinkIntegration =  await upgrades.deployProxy(ChainlinkIntegration,
-      [honestConfiguration.address, ethPriceFeeds.address],
-      {unsafeAllowCustomTypes: true});
+    const honestAsset = await honestAssetDeployer.deployContracts();
+    honestConfiguration = await honestConfigurationDeployer.deployContracts(honestAsset);
+    chainlinkIntegration = await chainlinkIntegrationDeployer.deployContracts(honestConfiguration);
   };
 
   before(async function () {

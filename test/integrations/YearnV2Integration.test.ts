@@ -1,19 +1,19 @@
-import {ethers, upgrades} from '@nomiclabs/buidler';
+import {ethers} from '@nomiclabs/buidler';
 import {expect} from 'chai';
-import {Contract, ContractFactory, Signer} from 'ethers';
-import {honestConfigurationDeployer} from '../../scripts/HonestConfiguration.deploy';
+import {Contract, Signer} from 'ethers';
 import * as yTokenV2 from '../../artifacts/MockYTokenV2.json';
+import {honestAssetDeployer} from '../../scripts/HonestAsset.deploy';
+import {honestConfigurationDeployer} from '../../scripts/HonestConfiguration.deploy';
+import {yearnV2IntegrationDeployer} from '../../scripts/integrations/YearnV2Integration.deploy';
 
 describe('YearnV2Integration', () => {
 
   let supervisor: Signer, honestConfiguration: Contract, yearnV2Integration: Contract, savingsRole: string;
 
   const deployContracts = async () => {
-    honestConfiguration = await honestConfigurationDeployer.deployContracts();
-    const YearnV2Integration = await ethers.getContractFactory('YearnV2Integration');
-    yearnV2Integration =  await upgrades.deployProxy(YearnV2Integration,
-      [honestConfiguration.address],
-      {unsafeAllowCustomTypes: true});
+    const honestAsset = await honestAssetDeployer.deployContracts();
+    honestConfiguration = await honestConfigurationDeployer.deployContracts(honestAsset);
+    yearnV2Integration = await yearnV2IntegrationDeployer.deployContracts(honestConfiguration);
   };
 
   before(async function () {
@@ -24,7 +24,7 @@ describe('YearnV2Integration', () => {
 
   it('invest without authorization', async () => {
     const assets = await honestConfiguration.activeBasketAssets();
-    for(const asset of assets) {
+    for (const asset of assets) {
       await expect(yearnV2Integration.invest(asset, ethers.utils.parseUnits('100', 18))).to.reverted;
     }
   });
@@ -33,7 +33,7 @@ describe('YearnV2Integration', () => {
     await yearnV2Integration.grantRole(savingsRole, await supervisor.getAddress());
 
     const assets = await honestConfiguration.activeBasketAssets();
-    for(const asset of assets) {
+    for (const asset of assets) {
       const token = new Contract(asset, yTokenV2.abi, supervisor);
       const decimals = await token.decimals();
       await token.mint(await supervisor.getAddress(), ethers.utils.parseUnits('100', decimals));
@@ -49,7 +49,7 @@ describe('YearnV2Integration', () => {
 
   it('collect without authorization', async () => {
     const assets = await honestConfiguration.activeBasketAssets();
-    for(const asset of assets) {
+    for (const asset of assets) {
       await expect(yearnV2Integration.collect(asset, ethers.utils.parseUnits('100', 18))).to.reverted;
     }
   });
@@ -58,7 +58,7 @@ describe('YearnV2Integration', () => {
     await yearnV2Integration.grantRole(savingsRole, await supervisor.getAddress());
 
     const assets = await honestConfiguration.activeBasketAssets();
-    for(const asset of assets) {
+    for (const asset of assets) {
       const token = new Contract(asset, yTokenV2.abi, supervisor);
       const decimals = await token.decimals();
       const shares = await yearnV2Integration.shareOf(asset);
