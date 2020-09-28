@@ -4,17 +4,28 @@ pragma solidity ^0.6.0;
 
 import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import {ERC20} from '@openzeppelin/contracts/token/ERC20/ERC20.sol';
+import {Ownable} from '@openzeppelin/contracts/access/Ownable.sol';
 import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import {SafeMath} from '@openzeppelin/contracts/math/SafeMath.sol';
 
 import {yTokenV2} from "../integrations/YearnV2Integration.sol";
 
-abstract contract MockYTokenV2 is yTokenV2, ERC20 {
+abstract contract MockYTokenV2 is yTokenV2, ERC20, Ownable {
 
     using SafeERC20 for IERC20;
     using SafeMath for uint;
 
     IERC20 private _token;
+
+    function mint(address account, uint amount) external onlyOwner returns (bool) {
+        _mint(account, amount);
+        return true;
+    }
+
+    function burn(address account, uint amount) external onlyOwner returns (bool) {
+        _burn(account, amount);
+        return true;
+    }
 
     function deposit(uint _amount) external override {
         _token.safeTransferFrom(_msgSender(), address(this), _amount);
