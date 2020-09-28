@@ -55,6 +55,7 @@ contract ChainlinkIntegration is IAssetPriceIntegration, AbstractHonestContract 
         require(honestConfiguration != address(0), 'ChainlinkIntegration.initialize: configuration address must be valid');
         require(ethUsdFeeds != address(0), 'ChainlinkIntegration.initialize: ETH price feeds must be valid');
 
+        super.initialize();
         _honestConfiguration = honestConfiguration;
         _ethUsdFeeds = ethUsdFeeds;
     }
@@ -90,6 +91,7 @@ contract ChainlinkIntegration is IAssetPriceIntegration, AbstractHonestContract 
     }
 
     function _getLatestPriceInUSD(address asset) internal view returns (uint) {
+        require(asset != address(0), 'ChainlinkIntegration._getLatestPriceInUSD: asset must be valid');
         (uint8 target, address feeds) = IHonestConfiguration(_honestConfiguration).basketAssetPriceIntegration(asset);
         if (target == uint8(IAssetPriceIntegration.FeedsTarget.USD)) {
             return _getLatestPrice(feeds);
