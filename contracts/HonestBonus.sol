@@ -15,7 +15,10 @@ contract HonestBonus is IHonestBonus, AbstractHonestContract {
     address private _priceIntegration;
 
     mapping(address => uint) _bonuses;
+    mapping(address => uint) _bonusPrices;
+    mapping(address => uint) _bonusShares;
     uint _totalBonus;
+    uint _totalShare;
 
     function initialize(address priceIntegration) external initializer() {
         require(priceIntegration != address(0), 'HonestBonus.initialize: priceIntegration address must be valid');
@@ -62,8 +65,16 @@ contract HonestBonus is IHonestBonus, AbstractHonestContract {
         return _bonuses[account];
     }
 
+    function shareOf(address account) external override view returns (uint) {
+        return _bonusShares[account];
+    }
+
     function totalBonus() external override view returns (uint) {
         return _totalBonus;
+    }
+
+    function totalShare() external override view returns (uint) {
+        return _totalShare;
     }
 
     function setPriceIntegration(address priceIntegration) external override onlyGovernor {
@@ -71,19 +82,35 @@ contract HonestBonus is IHonestBonus, AbstractHonestContract {
         _priceIntegration = priceIntegration;
     }
 
-    function addBonus(address account, uint bonus) external override onlyAssetManager {
+    function addBonus(address account, uint bonus, uint price) external override onlyAssetManager {
         require(account != address(0), 'HonestBonus.addBonus: account must be valid');
+        if (price == 0) {
+            return;
+        }
 
-        _bonuses[account] = _bonuses[account].add(bonus);
+        uint share = bonus.mul(uint(1e18)).div(price);
+
+        if (_bonuses[account] == 0) {
+            _bonuses[account] = bonus;
+            _bonusPrices[account] = price;
+            _bonusShares[account] = share;
+        } else {
+            _bonuses[account] = _bonuses[account].add(bonus);
+            _bonusShares[account] = _bonusShares[account].add(share);
+            _bonusPrices[account] = _bonuses[account].mul(uint(1e18)).div(_bonusShares[account]);
+        }
         _totalBonus = _totalBonus.add(bonus);
     }
 
-    function subtractBonus(address account, uint bonus) external override onlyAssetManager {
+    function reward(address account, uint price) external override onlyAssetManager returns (uint) {
         require(account != address(0), 'HonestBonus.subtractBonus: account must be valid');
-        require(bonus <= _bonuses[account], 'HonestBonus.subtractBonus: insufficient bonus');
 
-        _bonuses[account] = _bonuses[account].sub(bonus);
-        _totalBonus = _totalBonus.sub(bonus);
+        if (price < _bonusPrices[account]) {
+            return 0;
+        }
+        uint amount = _bonusShares[account].mul(price.sub(_bonusPrices[account])).div(uint(1e18));
+        _bonusPrices[account] = price;
+        return amount;
     }
 
     function _getAmountScale(address asset) internal view returns (uint) {
