@@ -32,6 +32,10 @@ library StandardERC20 {
         return IERC20(token).safeTransfer(to, resume(token, standardAmount));
     }
 
+    function standardTransferFrom(ERC20 token, address from, address to, uint standardAmount) internal {
+        return IERC20(token).safeTransferFrom(from, to, resume(token, standardAmount));
+    }
+
     function standardize(ERC20 token, uint value) internal view returns (uint) {
         uint8 decimals = token.decimals();
         require(decimals <= _standardDecimals, 'illegal decimals');
