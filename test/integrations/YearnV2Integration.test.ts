@@ -24,23 +24,25 @@ describe('YearnV2Integration', () => {
 
   it('invest without authorization', async () => {
     const assets = await honestConfiguration.activeBasketAssets();
+    const account = await supervisor.getAddress();
     for (const asset of assets) {
-      await expect(yearnV2Integration.invest(asset, ethers.utils.parseUnits('100', 18))).to.reverted;
+      await expect(yearnV2Integration.invest(account, asset, ethers.utils.parseUnits('100', 18))).to.reverted;
     }
   });
 
   it('invest', async () => {
     await yearnV2Integration.grantRole(savingsRole, await supervisor.getAddress());
+    const account = await supervisor.getAddress();
 
     const assets = await honestConfiguration.activeBasketAssets();
     for (const asset of assets) {
       const token = new Contract(asset, yTokenV2.abi, supervisor);
       const decimals = await token.decimals();
-      await token.mint(await supervisor.getAddress(), ethers.utils.parseUnits('100', decimals));
+      await token.mint(account, ethers.utils.parseUnits('100', decimals));
       await token.approve(yearnV2Integration.address, ethers.utils.parseUnits('100', decimals));
       const price = await yearnV2Integration.priceOf(asset);
       const shares = ethers.utils.parseUnits('100', decimals + 18).div(price).mul(ethers.utils.parseUnits('1', 18 - decimals));
-      await yearnV2Integration.invest(asset, ethers.utils.parseUnits('100', decimals));
+      await yearnV2Integration.invest(account, asset, ethers.utils.parseUnits('100', decimals));
       expect(await yearnV2Integration.shareOf(asset)).to.lte(shares);
     }
 
@@ -49,24 +51,27 @@ describe('YearnV2Integration', () => {
 
   it('collect without authorization', async () => {
     const assets = await honestConfiguration.activeBasketAssets();
+    const account = await supervisor.getAddress();
+
     for (const asset of assets) {
-      await expect(yearnV2Integration.collect(asset, ethers.utils.parseUnits('100', 18))).to.reverted;
+      await expect(yearnV2Integration.collect(account, asset, ethers.utils.parseUnits('100', 18))).to.reverted;
     }
   });
 
   it('collect', async () => {
-    await yearnV2Integration.grantRole(savingsRole, await supervisor.getAddress());
+    const account = await supervisor.getAddress();
+    await yearnV2Integration.grantRole(savingsRole, account);
 
     const assets = await honestConfiguration.activeBasketAssets();
     for (const asset of assets) {
       const token = new Contract(asset, yTokenV2.abi, supervisor);
       const decimals = await token.decimals();
       const shares = await yearnV2Integration.shareOf(asset);
-      await yearnV2Integration.collect(asset, shares);
-      const balance = await token.balanceOf(await supervisor.getAddress());
+      await yearnV2Integration.collect(account, asset, shares);
+      const balance = await token.balanceOf(account);
       expect(balance).to.gte(ethers.utils.parseUnits('100', decimals));
     }
 
-    await yearnV2Integration.revokeRole(savingsRole, await supervisor.getAddress());
+    await yearnV2Integration.revokeRole(savingsRole, account);
   });
 });

@@ -36,10 +36,11 @@ contract YearnV2Integration is IInvestmentIntegration, AbstractHonestContract, R
         _honestConfiguration = honestConfiguration;
     }
 
-    function invest(address asset, uint amount) external override onlySavings nonReentrant returns (uint) {
-        require(amount > 0, "YearnV2Integration.invest: invest must greater than 0");
+    function invest(address account, address asset, uint amount) external override onlySavings nonReentrant returns (uint) {
+        require(account != address(0), "YearnV2Integration.invest: account must be valid");
+        require(amount > 0, "YearnV2Integration.invest: invest must be greater than 0");
 
-        IERC20(asset).safeTransferFrom(_msgSender(), address(this), amount);
+        IERC20(asset).safeTransferFrom(account, address(this), amount);
 
         address yToken = _contractOf(asset);
         uint before = IERC20(yToken).balanceOf(address(this));
@@ -50,8 +51,9 @@ contract YearnV2Integration is IInvestmentIntegration, AbstractHonestContract, R
         return ERC20(yToken).standardize(credits);
     }
 
-    function collect(address asset, uint credits) external override onlySavings nonReentrant returns (uint) {
-        require(credits > 0, "YearnV2Integration.collect: credits must greater than 0");
+    function collect(address account, address asset, uint credits) external override onlySavings nonReentrant returns (uint) {
+        require(account != address(0), "YearnV2Integration.collect: account must be valid");
+        require(credits > 0, "YearnV2Integration.collect: credits must be greater than 0");
 
         yTokenV2 yToken = yTokenV2(_contractOf(asset));
         uint originShares = ERC20(address(yToken)).resume(credits);
@@ -60,7 +62,7 @@ contract YearnV2Integration is IInvestmentIntegration, AbstractHonestContract, R
         yToken.withdraw(originShares);
 
         require(amount <= IERC20(asset).balanceOf(address(this)), "YearnV2Integration.collect: insufficient balance");
-        IERC20(asset).safeTransfer(_msgSender(), amount);
+        IERC20(asset).safeTransfer(account, amount);
 
         return ERC20(asset).standardize(amount);
     }
