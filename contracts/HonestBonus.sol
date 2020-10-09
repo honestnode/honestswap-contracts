@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+
 pragma solidity ^0.6.0;
 
 import {SafeMath} from '@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol';
@@ -77,9 +79,9 @@ contract HonestBonus is IHonestBonus, AbstractHonestContract {
         return _totalShare;
     }
 
-    function setPriceIntegration(address priceIntegration) external override onlyGovernor {
-        require(priceIntegration != address(0), 'HonestBonus.initialize: priceIntegration address must be valid');
-        _priceIntegration = priceIntegration;
+    function setPriceIntegration(address priceIntegration_) external override onlyGovernor {
+        require(priceIntegration_ != address(0), 'HonestBonus.initialize: priceIntegration address must be valid');
+        _priceIntegration = priceIntegration_;
     }
 
     function addBonus(address account, uint bonus, uint price) external override onlyAssetManager {

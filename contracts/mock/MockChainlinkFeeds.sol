@@ -18,7 +18,7 @@ contract MockETH2USDFeeds is AggregatorV3Interface {
         return 2;
     }
 
-    function getRoundData(uint80 _roundId)
+    function getRoundData(uint80)
     external override
     view
     returns (
@@ -60,7 +60,7 @@ contract MockDAI2USDFeeds is AggregatorV3Interface {
         return 2;
     }
 
-    function getRoundData(uint80 _roundId)
+    function getRoundData(uint80)
     external override
     view
     returns (
@@ -102,7 +102,7 @@ contract MockTUSD2ETHFeeds is AggregatorV3Interface {
         return 2;
     }
 
-    function getRoundData(uint80 _roundId)
+    function getRoundData(uint80)
     external override
     view
     returns (
@@ -144,7 +144,7 @@ contract MockUSDC2ETHFeeds is AggregatorV3Interface {
         return 2;
     }
 
-    function getRoundData(uint80 _roundId)
+    function getRoundData(uint80)
     external override
     view
     returns (
@@ -186,7 +186,7 @@ contract MockUSDT2ETHFeeds is AggregatorV3Interface {
         return 2;
     }
 
-    function getRoundData(uint80 _roundId)
+    function getRoundData(uint80)
     external override
     view
     returns (

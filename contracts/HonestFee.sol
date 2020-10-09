@@ -15,6 +15,7 @@ contract HonestFee is IHonestFee, AbstractHonestContract {
     using SafeMath for uint;
 
     address private _honestConfiguration;
+    uint private _honestAssetRewardsPercentage;
 
     function initialize(address honestConfiguration) external initializer() {
         require(honestConfiguration != address(0), 'HonestFee.initialize: honestConfiguration address must be valid');
@@ -26,6 +27,26 @@ contract HonestFee is IHonestFee, AbstractHonestContract {
     function totalFee() public override view returns (uint) {
         address honestAsset = _honestAsset();
         return IERC20(honestAsset).balanceOf(address(this));
+    }
+
+    function honestAssetRewardsPercentage() public override view returns (uint) {
+        return _honestAssetRewardsPercentage;
+    }
+
+    function honestAssetRewards() public override view returns (uint) {
+        return totalFee().mul(_honestAssetRewardsPercentage).div(uint(1e18));
+    }
+
+    function distributeHonestAssetRewards(address account, uint price) external override returns (uint) {
+        require(account != address(0), 'HonestFee.distributeHonestAssetRewards: account must be valid');
+
+        uint rewards = honestAssetRewards();
+        if (rewards > 0) {
+            address honestAsset = _honestAsset();
+            IERC20(honestAsset).safeTransfer(account, rewards);
+        }
+
+        return honestAssetRewards().mul(uint(1e18)).div(price);
     }
 
     function reward(address account, uint amount) external override onlySavings returns (uint) {
@@ -41,5 +62,11 @@ contract HonestFee is IHonestFee, AbstractHonestContract {
 
     function _honestAsset() internal view returns (address) {
         return IHonestConfiguration(_honestConfiguration).honestAsset();
+    }
+
+    function setHonestAssetRewardsPercentage(uint percentage) external override onlyGovernor {
+        require(percentage < uint(1e18), 'HonestFee.setHonestAssetRewardsPercentage: percentage should be less than 1');
+
+        _honestAssetRewardsPercentage = percentage;
     }
 }

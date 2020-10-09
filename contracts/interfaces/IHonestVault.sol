@@ -4,35 +4,27 @@ pragma solidity ^0.6.0;
 
 interface IHonestVault {
 
-    enum Repository { ALL, VAULT, SAVINGS }
+    function honestConfiguration() external view returns (address);
 
-    function initialize(address honestAsset, address honestSavings, address[] calldata bAssets) external;
+    function investmentIntegration() external view returns (address);
 
-    function honestAsset() external view returns (address);
+    function honestFee() external view returns (address);
 
-    function honestSavings() external view returns (address);
+    function deposit(address account, uint amount) external returns (uint);
 
-    function basketAssets() external view returns (address[] memory, bool[] memory);
-
-    function setHonestAsset(address contractAddress) external;
-
-    function setHonestSavings(address contractAddress) external;
-
-    function addBasketAsset(address contractAddress) external;
-
-    function removeBasketAsset(address contractAddress) external;
-
-    function activateBasketAsset(address contractAddress) external;
-
-    function deactivateBasketAsset(address contractAddress) external;
-
-    function isAssetsAllActive(address[] calldata assets) external returns (bool);
-
-    function balanceOf(address bAsset) external view returns (uint);
+    function withdraw(address account, uint weight) external returns (uint);
 
     function balances() external view returns (address[] memory, uint[] memory, uint);
 
-    function distributeProportionally(address account, uint amount, Repository repository) external returns (address[] memory, uint[] memory);
+    function weightOf(address account) external view returns (uint);
 
-    function distributeManually(address account, address[] calldata assets, uint[] calldata amounts, Repository repository) external;
+    function shareOf(address account) external view returns (uint);
+
+    function shareValue() external view returns (uint);
+
+    function setHonestConfiguration(address honestConfiguration_) external;
+
+    function setInvestmentIntegration(address investmentIntegration_) external;
+
+    function setHonestFee(address honestFee_) external;
 }

@@ -58,7 +58,6 @@ contract YearnV2Integration is IInvestmentIntegration, AbstractHonestContract, R
         yTokenV2 yToken = yTokenV2(_contractOf(asset));
         uint originShares = ERC20(address(yToken)).resume(credits);
         uint amount = originShares.mul(yToken.getPricePerFullShare()).div(uint(1e18));
-
         yToken.withdraw(originShares);
 
         require(amount <= IERC20(asset).balanceOf(address(this)), "YearnV2Integration.collect: insufficient balance");

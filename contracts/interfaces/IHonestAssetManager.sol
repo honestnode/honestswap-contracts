@@ -4,23 +4,9 @@ pragma solidity ^0.6.0;
 
 interface IHonestAssetManager {
 
-    function initialize(address assetAddress, address basketAddress, address feeAddress, address bonusAddress) external;
-
-    function honestAsset() external view returns (address);
+    function honestConfiguration() external view returns (address);
 
     function honestVault() external view returns (address);
-
-    function honestFee() external view returns (address);
-
-    function honestBonus() external view returns (address);
-
-    function setHonestAsset(address contractAddress) external;
-
-    function setHonestVault(address contractAddress) external;
-
-    function setHonestFee(address contractAddress) external;
-
-    function setHonestBonus(address contractAddress) external;
 
     function mint(address[] calldata bAssets, uint[] calldata amounts) external;
 
@@ -41,4 +27,8 @@ interface IHonestAssetManager {
     function deposit(address to, uint amount) external returns (uint[] memory);
 
     function withdraw(address to, address[] calldata assets, uint[] calldata amounts, uint interests) external;
+
+    function setHonestConfiguration(address honestConfiguration_) external;
+
+    function setHonestVault(address honestVault_) external;
 }

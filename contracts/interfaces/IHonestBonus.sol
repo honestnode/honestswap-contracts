@@ -20,7 +20,7 @@ interface IHonestBonus {
 
     function totalShare() external view returns (uint);
 
-    function setPriceIntegration(address priceIntegration) external;
+    function setPriceIntegration(address priceIntegration_) external;
 
     function addBonus(address account, uint bonus, uint price) external;
 

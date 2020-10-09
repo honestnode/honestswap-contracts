@@ -1,4 +1,4 @@
-import {usePlugin} from '@nomiclabs/buidler/config';
+import {BuidlerConfig, usePlugin} from '@nomiclabs/buidler/config';
 import * as fs from 'fs';
 
 const infuraKey = fs.readFileSync('.infura').toString().trim();
@@ -7,9 +7,12 @@ const mnemonic = fs.readFileSync('.secret').toString().trim();
 usePlugin('@nomiclabs/buidler-waffle');
 usePlugin('@openzeppelin/buidler-upgrades');
 
-export default {
+const config: BuidlerConfig = {
   networks: {
-    buidlerevm: {},
+    buidlerevm: {
+      // loggingEnabled: true,
+      gas: 'auto'
+    },
     rinkeby: {
       url: `https://rinkeby.infura.io/v3/${infuraKey}`,
       accounts: {
@@ -25,3 +28,5 @@ export default {
     }
   }
 };
+
+export default config;

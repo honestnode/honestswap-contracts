@@ -4,33 +4,32 @@ pragma solidity ^0.6.0;
 
 interface IHonestSavings {
 
-    function initialize(address _hAssetContract, address _basketContract, address _investmentContract, address _feeContract, address _bonusContract)
-    external;
+    function honestConfiguration() external view returns (address);
 
-    function deposit(uint _amount) external returns (uint);
+    function investmentIntegration() external view returns (address);
 
-    function withdraw(uint _shares) external returns (uint);
+    function weightOf(address account) external view returns (uint);
 
-    function savingsOf(address _account) external view returns (uint);
+    function totalWeight() external view returns (uint);
 
-    function sharesOf(address _account) external view returns (uint);
+    function shareOf(address account) external view returns (uint);
 
-    function totalSavings() external view returns (uint);
-
-    function totalShares() external view returns (uint);
-
-    function sharePrice() external view returns (uint);
+    function totalShare() external view returns (uint);
 
     function totalValue() external view returns (uint);
 
-    function updateApy() external;
+    function sharePrice() external view returns (uint);
+
+    function deposit(address account, address vault, address[] calldata assets, uint[] calldata amounts) external;
+
+    function withdraw(address account, address vault, uint weight) external;
 
     function apy() external view returns (int256);
 
     function swap(address _account, address[] calldata _bAssets, uint[] calldata _borrows, address[] calldata _sAssets, uint[] calldata _supplies)
     external;
 
-    function investments() external view returns (address[] memory, uint[] memory, uint);
+    function setHonestConfiguration(address honestConfiguration_) external;
 
-    function investmentOf(address bAsset) external view returns (uint);
+    function setInvestmentIntegration(address investmentIntegration_) external;
 }

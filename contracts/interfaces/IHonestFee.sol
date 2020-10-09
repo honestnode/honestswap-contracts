@@ -6,5 +6,13 @@ interface IHonestFee {
 
     function totalFee() external view returns (uint);
 
-    function reward(address _account, uint _amount) external returns (uint);
+    function honestAssetRewardsPercentage() external view returns (uint);
+
+    function honestAssetRewards() external view returns (uint);
+
+    function distributeHonestAssetRewards(address account, uint price) external returns (uint);
+
+    function reward(address account, uint amount) external returns (uint);
+
+    function setHonestAssetRewardsPercentage(uint percentage) external;
 }

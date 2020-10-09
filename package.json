@@ -10,9 +10,8 @@
     "mocha": "./node_modules/.bin/mocha"
   },
   "scripts": {
-    "compile": "truffle compile",
-    "test": "truffle test",
-    "migrate:ropsten": "truffle migrate"
+    "compile": "buidler compile",
+    "test": "buidler test"
   },
   "devDependencies": {
     "@nomiclabs/buidler": "1.4.7",
