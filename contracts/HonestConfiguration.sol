@@ -4,13 +4,11 @@ pragma solidity ^0.6.0;
 
 import {EnumerableSet} from '@openzeppelin/contracts-ethereum-package/contracts/utils/EnumerableSet.sol';
 import {AbstractHonestContract} from "./AbstractHonestContract.sol";
-import {IAssetPriceIntegration} from './integrations/IAssetPriceIntegration.sol';
 import {IHonestConfiguration} from "./interfaces/IHonestConfiguration.sol";
 
 contract HonestConfiguration is IHonestConfiguration, AbstractHonestContract {
 
     using EnumerableSet for EnumerableSet.AddressSet;
-
 
     address private _honestAsset;
 
@@ -18,7 +16,7 @@ contract HonestConfiguration is IHonestConfiguration, AbstractHonestContract {
 
     mapping(address => bool) private _basketAssetStates;
 
-    mapping(address => IHonestConfiguration.Integrations) _basketIntegrations;
+    mapping(address => address) _basketInvestments;
 
     uint private _activeBasketAssetsLength;
 
@@ -27,23 +25,21 @@ contract HonestConfiguration is IHonestConfiguration, AbstractHonestContract {
     uint private _redeemFeeRate;
 
 
-    function initialize(address asset, address[] calldata bAssets, IAssetPriceIntegration.FeedsTarget[] calldata bAssetPriceTargets, address[] calldata bAssetPrices, address[] calldata bAssetInvestments, uint swapFeeRate, uint redeemFeeRate) external initializer() {
-        super.initialize();
+    function initialize(address owner, address asset, address[] calldata bAssets, address[] calldata bAssetInvestments, uint swapFeeRate, uint redeemFeeRate) external initializer() {
+        require(owner != address(0), 'HonestConfiguration.initialize: owner address must be valid');
         require(asset != address(0), 'HonestConfiguration.initialize: asset must be valid');
-        require(bAssetPriceTargets.length > 0, 'HonestConfiguration.initialize: integrations must be greater than 0');
-        require(bAssets.length == bAssetPriceTargets.length, 'HonestConfiguration.initialize: mismatch basket assets and price targets length');
-        require(bAssets.length == bAssetPrices.length, 'HonestConfiguration.initialize: mismatch basket assets and prices length');
+        require(bAssets.length > 0, 'HonestConfiguration.initialize: basket assets length must be greater than 0');
         require(bAssets.length == bAssetInvestments.length, 'HonestConfiguration.initialize: mismatch basket assets and investments length');
 
+        super.initialize(owner);
         _honestAsset = asset;
         for (uint i; i < bAssets.length; ++i) {
             require(bAssets[i] != address(0), 'HonestConfiguration.initialize: basket asset must be valid');
-            require(bAssetPrices[i] != address(0), 'HonestConfiguration.initialize: basket asset price integration must be valid');
             require(bAssetInvestments[i] != address(0), 'HonestConfiguration.initialize: basket asset investment integration must be valid');
 
             _basketAssets.add(bAssets[i]);
             _basketAssetStates[bAssets[i]] = true;
-            _basketIntegrations[bAssets[i]] = IHonestConfiguration.Integrations(bAssetPriceTargets[i], bAssetPrices[i], bAssetInvestments[i]);
+            _basketInvestments[bAssets[i]] = bAssetInvestments[i];
             ++_activeBasketAssetsLength;
         }
         _swapFeeRate = swapFeeRate;
@@ -79,18 +75,11 @@ contract HonestConfiguration is IHonestConfiguration, AbstractHonestContract {
         return assets;
     }
 
-    function basketAssetPriceIntegration(address asset) external override view returns (uint8, address) {
-        require(_basketAssets.contains(asset), 'HonestConfiguration.basketAssetPriceIntegration: invalid basket asset');
-        require(_basketAssetStates[asset], 'HonestConfiguration.basketAssetPriceIntegration: basket asset is not active');
-
-        return (uint8(_basketIntegrations[asset].priceTarget), _basketIntegrations[asset].price);
-    }
-
     function basketAssetInvestmentIntegration(address asset) external override view returns (address) {
         require(_basketAssets.contains(asset), 'HonestConfiguration.basketAssetPriceIntegration: invalid basket asset');
         require(_basketAssetStates[asset], 'HonestConfiguration.basketAssetPriceIntegration: basket asset is not active');
 
-        return _basketIntegrations[asset].investment;
+        return _basketInvestments[asset];
     }
 
     function swapFeeRate() external override view returns (uint) {
@@ -106,15 +95,14 @@ contract HonestConfiguration is IHonestConfiguration, AbstractHonestContract {
         _honestAsset = asset;
     }
 
-    function addBasketAsset(address asset, IAssetPriceIntegration.FeedsTarget bAssetPriceTarget, address bAssetPrice, address bAssetInvestment) external override onlyGovernor {
+    function addBasketAsset(address asset, address bAssetInvestment) external override onlyGovernor {
         require(asset != address(0), 'HonestConfiguration.addBasketAsset: basket asset must be valid');
-        require(bAssetPrice != address(0), 'HonestConfiguration.addBasketAsset: basket asset price integration must be valid');
         require(bAssetInvestment != address(0), 'HonestConfiguration.addBasketAsset: basket asset investment integration must be valid');
 
         if (!_basketAssets.contains(asset)) {
             _basketAssets.add(asset);
             _basketAssetStates[asset] = true;
-            _basketIntegrations[asset] = IHonestConfiguration.Integrations(bAssetPriceTarget, bAssetPrice, bAssetInvestment);
+            _basketInvestments[asset] = bAssetInvestment;
             ++_activeBasketAssetsLength;
         }
     }
@@ -128,7 +116,7 @@ contract HonestConfiguration is IHonestConfiguration, AbstractHonestContract {
                 --_activeBasketAssetsLength;
             }
             delete _basketAssetStates[asset];
-            delete _basketIntegrations[asset];
+            delete _basketInvestments[asset];
         }
     }
 

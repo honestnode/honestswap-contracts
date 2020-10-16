@@ -10,23 +10,15 @@ interface IHonestAssetManager {
 
     function mint(address[] calldata bAssets, uint[] calldata amounts) external;
 
-    function mintTo(address[] calldata bAssets, uint[] calldata amounts, address recipient) external;
-
     function redeemProportionally(uint amount) external;
 
-    function redeemProportionallyTo(uint amount, address recipient) external;
-
-    function redeemManually(address[] calldata bAssets, uint[] calldata amounts) external;
-
-    function redeemManuallyTo(address[] calldata bAssets, uint[] calldata amounts, address recipient) external;
+    function redeemManually(address[] calldata assets, uint[] calldata amounts) external;
 
     function swap(address from, address to, uint amount) external;
 
-    function swapTo(address from, address to, uint amount, address recipient) external;
+    function deposit(uint amount) external;
 
-    function deposit(address to, uint amount) external returns (uint[] memory);
-
-    function withdraw(address to, address[] calldata assets, uint[] calldata amounts, uint interests) external;
+    function withdraw(uint weight) external;
 
     function setHonestConfiguration(address honestConfiguration_) external;
 

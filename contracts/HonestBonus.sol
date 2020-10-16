@@ -22,11 +22,12 @@ contract HonestBonus is IHonestBonus, AbstractHonestContract {
     uint _totalBonus;
     uint _totalShare;
 
-    function initialize(address priceIntegration) external initializer() {
-        require(priceIntegration != address(0), 'HonestBonus.initialize: priceIntegration address must be valid');
+    function initialize(address owner, address priceIntegration_) external initializer() {
+        require(owner != address(0), 'HonestBonus.initialize: owner address must be valid');
+        require(priceIntegration_ != address(0), 'HonestBonus.initialize: priceIntegration address must be valid');
 
-        super.initialize();
-        _priceIntegration = priceIntegration;
+        super.initialize(owner);
+        _priceIntegration = priceIntegration_;
     }
 
     function priceIntegration() external override view returns (address) {
@@ -55,7 +56,6 @@ contract HonestBonus is IHonestBonus, AbstractHonestContract {
 
     function calculateBonuses(address[] calldata assets, uint[] calldata amounts, uint feeRate)
     external override view returns (uint) {
-        uint[] memory values = IAssetPriceIntegration(_priceIntegration).getPrices(assets);
         uint totalValue;
         for (uint i; i < assets.length; ++i) {
             totalValue.add(calculateBonus(assets[i], amounts[i], feeRate));
@@ -77,11 +77,6 @@ contract HonestBonus is IHonestBonus, AbstractHonestContract {
 
     function totalShare() external override view returns (uint) {
         return _totalShare;
-    }
-
-    function setPriceIntegration(address priceIntegration_) external override onlyGovernor {
-        require(priceIntegration_ != address(0), 'HonestBonus.initialize: priceIntegration address must be valid');
-        _priceIntegration = priceIntegration_;
     }
 
     function addBonus(address account, uint bonus, uint price) external override onlyAssetManager {

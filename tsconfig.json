@@ -7,11 +7,12 @@
     "esModuleInterop": true,
     "outDir": "dist"
   },
-  "include": ["./scripts", "./test", "./artifacts"],
+  "include": ["./scripts", "./deploy", "./test", "./artifacts"],
   "files": [
     "./buidler.config.ts",
-    "./node_modules/@nomiclabs/buidler-ethers/src/type-extensions.d.ts",
     "./node_modules/@nomiclabs/buidler-waffle/src/type-extensions.d.ts",
-    "./node_modules/@openzeppelin/buidler-upgrades/src/type-extensions.d.ts"
+    "./node_modules/@openzeppelin/buidler-upgrades/src/type-extensions.d.ts",
+    "./node_modules/buidler-ethers-v5/src/type-extensions.d.ts",
+    "./node_modules/buidler-deploy/src/type-extensions.d.ts"
   ]
 }

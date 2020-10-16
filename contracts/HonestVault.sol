@@ -32,12 +32,13 @@ contract HonestVault is IHonestVault, AbstractHonestContract {
     uint private _totalWeight;
     uint private _totalShare;
 
-    function initialize(address honestConfiguration_, address investmentIntegration_, address honestFee_) external initializer() {
+    function initialize(address owner, address honestConfiguration_, address investmentIntegration_, address honestFee_) external initializer() {
+        require(owner != address(0), 'HonestVault.initialize: owner address must be valid');
         require(honestConfiguration_ != address(0), 'HonestVault.initialize: honestConfiguration must be valid');
         require(investmentIntegration_ != address(0), 'HonestVault.initialize: investmentIntegration must be valid');
         require(honestFee_ != address(0), 'HonestVault.initialize: honestFee must be valid');
 
-        super.initialize();
+        super.initialize(owner);
         _honestConfiguration = honestConfiguration_;
         _investmentIntegration = investmentIntegration_;
         _honestFee = honestFee_;
@@ -77,8 +78,10 @@ contract HonestVault is IHonestVault, AbstractHonestContract {
 
         for (uint i; i < assets.length; ++i) {
             uint investment = ERC20(assets[i]).resume(amount.mul(amounts[i]).div(totalAmount));
-            IERC20(assets[i]).safeApprove(_investmentIntegration, investment);
-            IInvestmentIntegration(_investmentIntegration).invest(address(this), assets[i], investment);
+            if (investment > 0) {
+                IERC20(assets[i]).safeApprove(_investmentIntegration, investment);
+                IInvestmentIntegration(_investmentIntegration).invest(address(this), assets[i], investment);
+            }
         }
         return share;
     }
@@ -100,13 +103,27 @@ contract HonestVault is IHonestVault, AbstractHonestContract {
     }
 
     function _collect(address account, uint share) internal returns (uint) {
+
+        uint value = shareValue();
+        uint collectAmount = share.mul(value).div(uint(1e18));
+        uint feeAmount = IHonestFee(_honestFee).claimableRewards();
+
         (address[] memory assets, uint[] memory shares, uint totalShare, uint price) = IInvestmentIntegration(_investmentIntegration).shares();
-        uint feeShare = IHonestFee(_honestFee).distributeHonestAssetRewards(account, shareValue());
-        uint actualShare = (share - feeShare).mul(totalShare).div(_totalShare);
+
+        if (feeAmount > 0) {
+            IHonestFee(_honestFee).distributeHonestAssetRewards(account, shareValue());
+        }
+        uint actualShare = collectAmount.sub(feeAmount).mul(uint(1e18)).div(price);
+
         uint totalAmount;
         for (uint i; i < assets.length; ++i) {
             uint investmentShare = actualShare.mul(shares[i]).div(totalShare);
-            uint amount = IInvestmentIntegration(_investmentIntegration).collect(address(this), assets[i], investmentShare);
+            uint amount;
+            if (investmentShare > shares[i]) {
+                amount = IInvestmentIntegration(_investmentIntegration).collect(address(this), assets[i], shares[i]);
+            } else {
+                amount = IInvestmentIntegration(_investmentIntegration).collect(address(this), assets[i], investmentShare);
+            }
             totalAmount = totalAmount.add(amount);
         }
         return totalAmount;
@@ -153,8 +170,55 @@ contract HonestVault is IHonestVault, AbstractHonestContract {
         if (_totalShare == 0) {
             return uint(1e18);
         }
-        (address[] memory assets, uint[] memory balances, uint totalBalance) = _balances(Repository.SAVINGS);
-        return totalBalance.mul(uint(1e18)).div(_totalShare);
+        uint fee = IHonestFee(_honestFee).claimableRewards();
+        (, , uint totalBalance) = _balances(Repository.SAVINGS);
+        return totalBalance.add(fee).mul(uint(1e18)).div(_totalShare);
+    }
+
+    function distributeProportionally(address account, uint amount) external override onlyAssetManager {
+        (address[] memory assets, uint[] memory amounts, uint totalAmount) = _balances(Repository.VAULT);
+        for (uint i; i < assets.length; ++i) {
+            if (amounts[i] > 0) {
+                uint assetAmount = amounts[i].mul(amount).div(totalAmount);
+                if (assetAmount < amounts[i]) {
+                    amounts[i] = assetAmount;
+                }
+                _distributeVault(account, assets[i], amounts[i]);
+            }
+        }
+    }
+
+    function distributeManually(address account, address[] calldata assets, uint[] calldata amounts) external override onlyAssetManager {
+        uint[] memory gapAmounts = new uint[](assets.length);
+        uint gaps;
+        for (uint i; i < assets.length; ++i) {
+            require(amounts[i] > 0, 'amount must be greater than 0');
+            require(amounts[i] <= _balanceOf(Repository.ALL, assets[i]), 'insufficient balance');
+            uint vaultAmount = _balanceOf(Repository.VAULT, assets[i]);
+            if (amounts[i] > vaultAmount) {
+                _distributeVault(account, assets[i], vaultAmount);
+                gapAmounts[i] = amounts[i].sub(vaultAmount);
+                gaps += gapAmounts[i];
+            } else {
+                _distributeVault(account, assets[i], amounts[i]);
+            }
+        }
+        if (gaps > 0) {
+            _distributeSavings(account, assets, gapAmounts, gaps);
+        }
+    }
+
+    function _distributeVault(address to, address asset, uint amount) internal {
+        ERC20(asset).standardTransfer(to, amount);
+    }
+
+    function _distributeSavings(address account, address[] memory assets, uint[] memory borrows, uint total) internal {
+        for (uint i; i < assets.length; ++i) {
+            uint price = IInvestmentIntegration(_investmentIntegration).priceOf(assets[i]);
+            uint share = borrows[i].mul(uint(1e18)).div(price);
+            IInvestmentIntegration(_investmentIntegration).collect(account, assets[i], share);
+        }
+        _invest(total);
     }
 
     function setHonestConfiguration(address honestConfiguration_) external override onlyGovernor {

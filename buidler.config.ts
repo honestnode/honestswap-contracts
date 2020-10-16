@@ -5,9 +5,16 @@ const infuraKey = fs.readFileSync('.infura').toString().trim();
 const mnemonic = fs.readFileSync('.secret').toString().trim();
 
 usePlugin('@nomiclabs/buidler-waffle');
-usePlugin('@openzeppelin/buidler-upgrades');
+usePlugin("buidler-ethers-v5");
+usePlugin('buidler-deploy');
 
 const config: BuidlerConfig = {
+  namedAccounts: {
+    dealer: 0,
+    dummy1: 1,
+    dummy2: 2,
+    supervisor: 9
+  },
   networks: {
     buidlerevm: {
       // loggingEnabled: true,

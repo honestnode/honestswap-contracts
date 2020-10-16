@@ -39,8 +39,7 @@ abstract contract MockYTokenV2 is yTokenV2, ERC20, Ownable {
     }
 
     function getPricePerFullShare() public override view returns (uint) {
-        // based on block.timestamp, div 10 to make change happened each 10 seconds
-        return block.timestamp.div(uint(10)).sub(uint(159917000)).mul(uint(1e13));
+        return block.timestamp.sub(uint(1599170000)).mul(uint(1e12));
     }
 
     function _setToken(address _tokenAddress) internal {

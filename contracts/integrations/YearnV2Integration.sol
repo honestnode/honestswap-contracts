@@ -28,15 +28,16 @@ contract YearnV2Integration is IInvestmentIntegration, AbstractHonestContract, R
 
     address private _honestConfiguration;
 
-    function initialize(address honestConfiguration) external initializer() {
+    function initialize(address owner, address honestConfiguration) external initializer() {
+        require(owner != address(0), 'YearnV2Integration.initialize: owner address must be valid');
         require(honestConfiguration != address(0), 'YearnV2Integration.initialize: honestConfiguration address must be valid');
 
-        super.initialize();
+        super.initialize(owner);
         __ReentrancyGuard_init();
         _honestConfiguration = honestConfiguration;
     }
 
-    function invest(address account, address asset, uint amount) external override onlySavings nonReentrant returns (uint) {
+    function invest(address account, address asset, uint amount) external override onlyVault nonReentrant returns (uint) {
         require(account != address(0), "YearnV2Integration.invest: account must be valid");
         require(amount > 0, "YearnV2Integration.invest: invest must be greater than 0");
 
@@ -51,7 +52,7 @@ contract YearnV2Integration is IInvestmentIntegration, AbstractHonestContract, R
         return ERC20(yToken).standardize(credits);
     }
 
-    function collect(address account, address asset, uint credits) external override onlySavings nonReentrant returns (uint) {
+    function collect(address account, address asset, uint credits) external override onlyVault nonReentrant returns (uint) {
         require(account != address(0), "YearnV2Integration.collect: account must be valid");
         require(credits > 0, "YearnV2Integration.collect: credits must be greater than 0");
 

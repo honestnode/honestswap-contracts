@@ -13,8 +13,4 @@ interface IAssetPriceIntegration {
     function getPrice(address asset) external view returns (uint);
 
     function getPrices(address[] calldata assets) external view returns (uint[] memory);
-
-    function setHonestConfiguration(address configuration) external;
-
-    function setEthPriceFeeds(address feeds) external;
 }

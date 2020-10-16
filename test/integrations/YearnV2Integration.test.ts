@@ -1,77 +1,83 @@
-import {ethers} from '@nomiclabs/buidler';
+import {deployments, ethers} from '@nomiclabs/buidler';
 import {expect} from 'chai';
-import {Contract, Signer} from 'ethers';
+import {Contract, utils} from 'ethers';
 import * as yTokenV2 from '../../artifacts/MockYTokenV2.json';
-import {honestAssetDeployer} from '../../scripts/HonestAsset.deploy';
-import {honestConfigurationDeployer} from '../../scripts/HonestConfiguration.deploy';
-import {yearnV2IntegrationDeployer} from '../../scripts/integrations/YearnV2Integration.deploy';
+import {getNamedAccounts, NamedAccounts} from '../../scripts/HonestContract.test';
 
 describe('YearnV2Integration', () => {
 
-  let supervisor: Signer, honestConfiguration: Contract, yearnV2Integration: Contract, savingsRole: string;
+  let namedAccounts: NamedAccounts;
+  let proxyAdmin: Contract, honestConfiguration: Contract, yearnV2Integration: Contract, vaultRole: string;
 
-  const deployContracts = async () => {
-    const honestAsset = await honestAssetDeployer.deployContracts();
-    honestConfiguration = await honestConfigurationDeployer.deployContracts(honestAsset);
-    yearnV2Integration = await yearnV2IntegrationDeployer.deployContracts(honestConfiguration);
+  const initializeAccounts = async () => {
+    namedAccounts = await getNamedAccounts();
   };
 
-  before(async function () {
-    supervisor = (await ethers.getSigners())[0];
+  const deployContracts = async () => {
+    await deployments.fixture();
+
+    proxyAdmin = await ethers.getContract('DelayedProxyAdmin', namedAccounts.supervisor.signer);
+    honestConfiguration = await ethers.getContract('HonestConfiguration', namedAccounts.dummy1.signer);
+    yearnV2Integration = await ethers.getContract('YearnV2Integration', namedAccounts.dummy1.signer);
+  };
+
+  before(async () => {
+    await initializeAccounts();
     await deployContracts();
-    savingsRole = await yearnV2Integration.SAVINGS();
+    vaultRole = await yearnV2Integration.VAULT();
   });
 
   it('invest without authorization', async () => {
     const assets = await honestConfiguration.activeBasketAssets();
-    const account = await supervisor.getAddress();
+    const account = namedAccounts.dummy1.address;
     for (const asset of assets) {
-      await expect(yearnV2Integration.invest(account, asset, ethers.utils.parseUnits('100', 18))).to.reverted;
+      await expect(yearnV2Integration.invest(account, asset, utils.parseUnits('100', 18))).to.reverted;
     }
   });
 
   it('invest', async () => {
-    await yearnV2Integration.grantRole(savingsRole, await supervisor.getAddress());
-    const account = await supervisor.getAddress();
+    await proxyAdmin.grantProxyRole(yearnV2Integration.address, vaultRole, namedAccounts.dummy1.address);
+    const account = namedAccounts.dummy1.address;
 
     const assets = await honestConfiguration.activeBasketAssets();
     for (const asset of assets) {
-      const token = new Contract(asset, yTokenV2.abi, supervisor);
+      const token = await ethers.getContractAt(yTokenV2.abi, asset, namedAccounts.supervisor.signer);
       const decimals = await token.decimals();
-      await token.mint(account, ethers.utils.parseUnits('100', decimals));
-      await token.approve(yearnV2Integration.address, ethers.utils.parseUnits('100', decimals));
+      await token.mint(account, utils.parseUnits('100', decimals));
+      const dummy1Token = namedAccounts.dummy1.connect(token);
+      await dummy1Token.approve(yearnV2Integration.address, utils.parseUnits('100', decimals));
       const price = await yearnV2Integration.priceOf(asset);
-      const shares = ethers.utils.parseUnits('100', decimals + 18).div(price).mul(ethers.utils.parseUnits('1', 18 - decimals));
-      await yearnV2Integration.invest(account, asset, ethers.utils.parseUnits('100', decimals));
+      const shares = utils.parseUnits('100', decimals + 18).div(price).mul(utils.parseUnits('1', 18 - decimals));
+      await yearnV2Integration.invest(account, asset, utils.parseUnits('100', decimals));
       expect(await yearnV2Integration.shareOf(asset)).to.lte(shares);
     }
 
-    await yearnV2Integration.revokeRole(savingsRole, await supervisor.getAddress());
+    await proxyAdmin.revokeProxyRole(yearnV2Integration.address, vaultRole, namedAccounts.dummy1.address);
   });
 
   it('collect without authorization', async () => {
     const assets = await honestConfiguration.activeBasketAssets();
-    const account = await supervisor.getAddress();
+    const account = namedAccounts.dummy1.address;
 
     for (const asset of assets) {
-      await expect(yearnV2Integration.collect(account, asset, ethers.utils.parseUnits('100', 18))).to.reverted;
+      await expect(yearnV2Integration.collect(account, asset, utils.parseUnits('100', 18))).to.reverted;
     }
   });
 
   it('collect', async () => {
-    const account = await supervisor.getAddress();
-    await yearnV2Integration.grantRole(savingsRole, account);
+    const account = namedAccounts.dummy1.address;
+    await proxyAdmin.grantProxyRole(yearnV2Integration.address, vaultRole, namedAccounts.dummy1.address);
 
     const assets = await honestConfiguration.activeBasketAssets();
     for (const asset of assets) {
-      const token = new Contract(asset, yTokenV2.abi, supervisor);
+      const token = new Contract(asset, yTokenV2.abi, namedAccounts.dummy1.signer);
       const decimals = await token.decimals();
       const shares = await yearnV2Integration.shareOf(asset);
       await yearnV2Integration.collect(account, asset, shares);
       const balance = await token.balanceOf(account);
-      expect(balance).to.gte(ethers.utils.parseUnits('100', decimals));
+      expect(balance).to.gte(utils.parseUnits('100', decimals));
     }
 
-    await yearnV2Integration.revokeRole(savingsRole, account);
+    await proxyAdmin.revokeProxyRole(yearnV2Integration.address, vaultRole, namedAccounts.dummy1.address);
   });
 });

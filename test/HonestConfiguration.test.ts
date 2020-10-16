@@ -1,59 +1,37 @@
-import {deployMockContract} from '@ethereum-waffle/mock-contract';
-import {ethers, upgrades} from '@nomiclabs/buidler';
+import {deployments, ethers} from '@nomiclabs/buidler';
 import {expect} from 'chai';
-import {Contract, ContractFactory, Signer} from 'ethers';
-
-import HonestAssetArtifact from '../artifacts/HonestAsset.json';
-import {honestAssetDeployer} from '../scripts/HonestAsset.deploy';
+import {Contract, utils} from 'ethers';
+import {getNamedAccounts, NamedAccounts} from '../scripts/HonestContract.test';
 
 describe('HonestConfiguration', () => {
-  let supervisor: Signer, honestAsset: Contract, honestConfiguration: Contract, HonestConfiguration: ContractFactory,
-    governorRole: string;
+  let namedAccounts: NamedAccounts;
+  let proxyAdmin: Contract, honestAsset: Contract, honestConfiguration: Contract, governorRole: string;
   let dai: Contract, tusd: Contract, usdc: Contract, usdt: Contract;
   let yDAI: Contract, yTUSD: Contract, yUSDC: Contract, yUSDT: Contract;
-  let daiFeeds: Contract, tusdFeeds: Contract, usdcFeeds: Contract, usdtFeeds: Contract;
 
-  const deployContract = async (name: string, ...args: any[]): Promise<Contract> => {
-    const contract: ContractFactory = await ethers.getContractFactory(name);
-    return await contract.deploy(...args);
+  const initializeAccounts = async () => {
+    namedAccounts = await getNamedAccounts();
   };
 
-  const deployBasketAssets = async () => {
-    dai = await deployContract('MockDAI');
-    tusd = await deployContract('MockTUSD');
-    usdc = await deployContract('MockUSDC');
-    usdt = await deployContract('MockUSDT');
-  };
-
-  const deployPriceFeeds = async () => {
-    daiFeeds = await deployContract('MockDAI2USDFeeds');
-    tusdFeeds = await deployContract('MockTUSD2ETHFeeds');
-    usdcFeeds = await deployContract('MockUSDC2ETHFeeds');
-    usdtFeeds = await deployContract('MockUSDT2ETHFeeds');
-  };
-
-  const deployInvestments = async () => {
-    yDAI = await deployContract('MockYDAI', dai.address);
-    yTUSD = await deployContract('MockYTUSD', tusd.address);
-    yUSDC = await deployContract('MockYUSDC', usdc.address);
-    yUSDT = await deployContract('MockYUSDT', usdt.address);
-  };
-
-  const deployHonestConfiguration = async () => {
-    honestAsset = await honestAssetDeployer.deployContracts();
-    await deployBasketAssets();
-    await deployPriceFeeds();
-    await deployInvestments();
-    HonestConfiguration = await ethers.getContractFactory('HonestConfiguration');
-    honestConfiguration = await upgrades.deployProxy(HonestConfiguration,
-      [honestAsset.address, [dai.address], [0], [daiFeeds.address], [yDAI.address], ethers.utils.parseUnits('1', 16), ethers.utils.parseUnits('2', 16)],
-      {unsafeAllowCustomTypes: true});
+  const deployContracts = async () => {
+    await deployments.fixture();
+    proxyAdmin = await ethers.getContract('DelayedProxyAdmin', namedAccounts.supervisor.signer);
+    honestAsset = await ethers.getContract('HonestAsset', namedAccounts.dealer.signer);
+    honestConfiguration = await ethers.getContract('HonestConfiguration', namedAccounts.dealer.signer);
+    dai = await ethers.getContract('MockDAI', namedAccounts.supervisor.signer);
+    tusd = await ethers.getContract('MockTUSD', namedAccounts.supervisor.signer);
+    usdc = await ethers.getContract('MockUSDC', namedAccounts.supervisor.signer);
+    usdt = await ethers.getContract('MockUSDT', namedAccounts.supervisor.signer);
+    yDAI = await ethers.getContract('MockYDAI', namedAccounts.supervisor.signer);
+    yTUSD = await ethers.getContract('MockYTUSD', namedAccounts.supervisor.signer);
+    yUSDC = await ethers.getContract('MockYUSDC', namedAccounts.supervisor.signer);
+    yUSDT = await ethers.getContract('MockYUSDT', namedAccounts.supervisor.signer);
+    governorRole = await honestConfiguration.GOVERNOR();
   };
 
   before(async function () {
-    supervisor = (await ethers.getSigners())[0];
-    await deployHonestConfiguration();
-    governorRole = await honestConfiguration.GOVERNOR();
+    await initializeAccounts();
+    await deployContracts();
   });
 
   describe('HonestAsset', () => {
@@ -62,24 +40,21 @@ describe('HonestConfiguration', () => {
       expect(address).to.equal(honestAsset.address);
     });
 
-    it('set honest asset without authorized, revert', async () => {
-      const newContract = await deployMockContract(supervisor, HonestAssetArtifact.abi);
-      await expect(honestConfiguration.setHonestAsset(newContract.address)).to.reverted;
-    });
-
     it('set honest asset of address(0)', async () => {
       await expect(honestConfiguration.setHonestAsset('0x0000000000000000000000000000000000000000')).to.reverted;
     });
 
     it('set honest asset', async () => {
-      await honestConfiguration.grantRole(governorRole, await supervisor.getAddress());
+      await proxyAdmin.grantProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
 
-      const newContract = await deployMockContract(supervisor, HonestAssetArtifact.abi);
+      const newContract = await deployments.deploy('NewHonestAsset', {contract: 'HonestAsset', from: namedAccounts.dealer.address});
+      expect(newContract.address).not.equal(honestAsset.address);
       await honestConfiguration.setHonestAsset(newContract.address);
 
       const asset = await honestConfiguration.honestAsset();
       expect(asset).to.equal(newContract.address);
-      await honestConfiguration.revokeRole(governorRole, await supervisor.getAddress());
+
+      await proxyAdmin.revokeProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
     });
   });
 
@@ -98,44 +73,24 @@ describe('HonestConfiguration', () => {
       activeAssets.forEach(a => expect(expects[a]).to.equal(true));
     };
 
-    const assertBasketAssetIntegrations = async (assets: Record<string, {type: number, price: string, investment: string}>, invalids: string[]) => {
-      for (const [asset, {type, price, investment}] of Object.entries(assets)) {
-        const priceIntegration: [number, string] = await honestConfiguration.basketAssetPriceIntegration(asset);
-        expect(priceIntegration[0]).to.equal(type);
-        expect(priceIntegration[1]).to.equal(price);
+    const assertBasketAssetIntegrations = async (assets: Record<string, string>, invalids: string[]) => {
+      for (const [asset, investment] of Object.entries(assets)) {
         const investmentIntegration: string = await honestConfiguration.basketAssetInvestmentIntegration(asset);
         expect(investmentIntegration).to.equal(investment);
       }
       for (const asset of invalids) {
-        await expect(honestConfiguration.basketAssetPriceIntegration(asset)).to.be.reverted;
         await expect(honestConfiguration.basketAssetInvestmentIntegration(asset)).to.be.reverted;
       }
     };
 
     it('get initial basket assets', async () => {
-      await assertBasketAssets({[dai.address]: true});
-      await assertBasketAssetIntegrations({
-        [dai.address]: {type: 0, price: daiFeeds.address, investment: yDAI.address}
-      }, [tusd.address, usdc.address, usdt.address]);
-    });
-
-    it('add basket assets without authorization', async () => {
-      await expect(honestConfiguration.addBasketAsset(tusd.address, 1, yTUSD.address, tusdFeeds.address)).to.reverted;
-    });
-
-    it('add basket assets', async () => {
-      await honestConfiguration.grantRole(governorRole, await supervisor.getAddress());
-      await honestConfiguration.addBasketAsset(tusd.address, 1, tusdFeeds.address, yTUSD.address);
-      await honestConfiguration.addBasketAsset(usdc.address, 1, usdcFeeds.address, yUSDC.address);
-      await honestConfiguration.addBasketAsset(usdt.address, 1, usdtFeeds.address, yUSDT.address);
       await assertBasketAssets({[dai.address]: true, [tusd.address]: true, [usdc.address]: true, [usdt.address]: true});
       await assertBasketAssetIntegrations({
-        [dai.address]: {type: 0, price: daiFeeds.address, investment: yDAI.address},
-        [tusd.address]: {type: 1, price: tusdFeeds.address, investment: yTUSD.address},
-        [usdc.address]: {type: 1, price: usdcFeeds.address, investment: yUSDC.address},
-        [usdt.address]: {type: 1, price: usdtFeeds.address, investment: yUSDT.address}
+        [dai.address]: yDAI.address,
+        [tusd.address]: yTUSD.address,
+        [usdc.address]: yUSDC.address,
+        [usdt.address]: yUSDT.address
       }, []);
-      await honestConfiguration.revokeRole(governorRole, await supervisor.getAddress());
     });
 
     it('deactivate basket assets without authorization', async () => {
@@ -143,7 +98,8 @@ describe('HonestConfiguration', () => {
     });
 
     it('deactivate basket assets', async () => {
-      await honestConfiguration.grantRole(governorRole, await supervisor.getAddress());
+      await proxyAdmin.grantProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
+
       await honestConfiguration.deactivateBasketAsset(dai.address);
       await honestConfiguration.deactivateBasketAsset(tusd.address);
       await honestConfiguration.deactivateBasketAsset(usdc.address);
@@ -154,9 +110,9 @@ describe('HonestConfiguration', () => {
         [usdt.address]: true
       });
       await assertBasketAssetIntegrations({
-        [usdt.address]: {type: 1, price: usdtFeeds.address, investment: yUSDT.address}
+        [usdt.address]: yUSDT.address
       }, [dai.address, tusd.address, usdc.address]);
-      await honestConfiguration.revokeRole(governorRole, await supervisor.getAddress());
+      await proxyAdmin.revokeProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
     });
 
     it('activate basket assets without authorization', async () => {
@@ -164,7 +120,7 @@ describe('HonestConfiguration', () => {
     });
 
     it('activate basket assets', async () => {
-      await honestConfiguration.grantRole(governorRole, await supervisor.getAddress());
+      await proxyAdmin.grantProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
       await honestConfiguration.activateBasketAsset(dai.address);
       await honestConfiguration.activateBasketAsset(usdc.address);
       await assertBasketAssets({
@@ -174,11 +130,11 @@ describe('HonestConfiguration', () => {
         [usdt.address]: true
       });
       await assertBasketAssetIntegrations({
-        [dai.address]: {type: 0, price: daiFeeds.address, investment: yDAI.address},
-        [usdc.address]: {type: 1, price: usdcFeeds.address, investment: yUSDC.address},
-        [usdt.address]: {type: 1, price: usdtFeeds.address, investment: yUSDT.address}
+        [dai.address]: yDAI.address,
+        [usdc.address]: yUSDC.address,
+        [usdt.address]: yUSDT.address
       }, [tusd.address]);
-      await honestConfiguration.revokeRole(governorRole, await supervisor.getAddress());
+      await proxyAdmin.revokeProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
     });
 
     it('remove basket assets without authorization', async () => {
@@ -186,16 +142,35 @@ describe('HonestConfiguration', () => {
     });
 
     it('remove basket assets', async () => {
-      await honestConfiguration.grantRole(governorRole, await supervisor.getAddress());
+      await proxyAdmin.grantProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
 
       await honestConfiguration.removeBasketAsset(tusd.address);
       await honestConfiguration.removeBasketAsset(usdc.address);
       await honestConfiguration.removeBasketAsset(usdt.address);
       await assertBasketAssets({[dai.address]: true});
       await assertBasketAssetIntegrations({
-        [dai.address]: {type: 0, price: daiFeeds.address, investment: yDAI.address}
+        [dai.address]: yDAI.address
       }, [tusd.address, usdc.address, usdt.address]);
-      await honestConfiguration.revokeRole(governorRole, await supervisor.getAddress());
+      await proxyAdmin.revokeProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
+    });
+
+    it('add basket assets without authorization', async () => {
+      await expect(honestConfiguration.addBasketAsset(tusd.address, yTUSD.address)).to.reverted;
+    });
+
+    it('add basket assets', async () => {
+      await proxyAdmin.grantProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
+      await honestConfiguration.addBasketAsset(tusd.address, yTUSD.address);
+      await honestConfiguration.addBasketAsset(usdc.address, yUSDC.address);
+      await honestConfiguration.addBasketAsset(usdt.address, yUSDT.address);
+      await assertBasketAssets({[dai.address]: true, [tusd.address]: true, [usdc.address]: true, [usdt.address]: true});
+      await assertBasketAssetIntegrations({
+        [dai.address]: yDAI.address,
+        [tusd.address]: yTUSD.address,
+        [usdc.address]: yUSDC.address,
+        [usdt.address]: yUSDT.address
+      }, []);
+      await proxyAdmin.revokeProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
     });
   });
 
@@ -203,27 +178,27 @@ describe('HonestConfiguration', () => {
     it('get initial fee rates', async () => {
       const swapFeeRate = await honestConfiguration.swapFeeRate();
       const redeemFeeRate = await honestConfiguration.redeemFeeRate();
-      expect(swapFeeRate).to.equal(ethers.utils.parseUnits('1', 16));
-      expect(redeemFeeRate).to.equal(ethers.utils.parseUnits('2', 16));
+      expect(swapFeeRate).to.equal(utils.parseUnits('1', 16));
+      expect(redeemFeeRate).to.equal(utils.parseUnits('1', 16));
     });
 
     it('set fee rates without authorization', async () => {
-      await expect(honestConfiguration.setSwapFeeRate(ethers.utils.parseUnits('2', 16))).to.reverted;
-      await expect(honestConfiguration.setRedeemFeeRate(ethers.utils.parseUnits('3', 16))).to.reverted;
+      await expect(honestConfiguration.setSwapFeeRate(utils.parseUnits('2', 16))).to.reverted;
+      await expect(honestConfiguration.setRedeemFeeRate(utils.parseUnits('3', 16))).to.reverted;
     });
 
     it('set fee rates without authorization', async () => {
-      await honestConfiguration.grantRole(governorRole, await supervisor.getAddress());
+      await proxyAdmin.grantProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
 
-      await honestConfiguration.setSwapFeeRate(ethers.utils.parseUnits('4', 16));
-      await honestConfiguration.setRedeemFeeRate(ethers.utils.parseUnits('5', 16));
+      await honestConfiguration.setSwapFeeRate(utils.parseUnits('4', 16));
+      await honestConfiguration.setRedeemFeeRate(utils.parseUnits('5', 16));
 
       const swapFeeRate = await honestConfiguration.swapFeeRate();
       const redeemFeeRate = await honestConfiguration.redeemFeeRate();
-      expect(swapFeeRate).to.equal(ethers.utils.parseUnits('4', 16));
-      expect(redeemFeeRate).to.equal(ethers.utils.parseUnits('5', 16));
+      expect(swapFeeRate).to.equal(utils.parseUnits('4', 16));
+      expect(redeemFeeRate).to.equal(utils.parseUnits('5', 16));
 
-      await honestConfiguration.revokeRole(governorRole, await supervisor.getAddress());
+      await proxyAdmin.revokeProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
     });
   });
 });

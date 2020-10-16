@@ -1,56 +1,67 @@
-import {ethers} from '@nomiclabs/buidler';
+import {deployments, ethers} from '@nomiclabs/buidler';
 import {expect} from 'chai';
-import {Contract} from 'ethers';
-import {honestAssetDeployer} from '../scripts/HonestAsset.deploy';
+import {Contract, utils} from 'ethers';
+import {getNamedAccounts, NamedAccounts} from '../scripts/HonestContract.test';
 
 describe('HonestAsset', () => {
-  let supervisor: string, dummy: string, honestAsset: Contract, role: string;
 
-  before(async function () {
-    supervisor = await (await ethers.getSigners())[0].getAddress();
-    dummy = await (await ethers.getSigners())[1].getAddress();
-    honestAsset = await honestAssetDeployer.deployContracts();
+  let namedAccounts: NamedAccounts;
+  let honestAsset: Contract, proxyAdmin: Contract, role: string;
+
+  const initializeAccounts = async () => {
+    namedAccounts = await getNamedAccounts();
+  };
+
+  const deployContracts = async () => {
+    await deployments.fixture();
+    proxyAdmin = await ethers.getContract('DelayedProxyAdmin', namedAccounts.supervisor.signer);
+    honestAsset = await ethers.getContract('HonestAsset', namedAccounts.dummy1.signer);
+  };
+
+  before(async () => {
+    await initializeAccounts();
+    await deployContracts();
     role = await honestAsset.ASSET_MANAGER();
   });
 
   it('mint without authorized, revert', async () => {
-    await expect(honestAsset.mint(dummy, ethers.utils.parseUnits('100', 18))).to.reverted;
+    await expect(honestAsset.mint(namedAccounts.dummy1.address, utils.parseUnits('100', 18))).to.reverted;
   });
 
   it('mint 100 to dummy', async () => {
-    await honestAsset.grantRole(role, supervisor);
+    await proxyAdmin.grantProxyRole(honestAsset.address, role, namedAccounts.dummy1.address);
 
-    const result = await honestAsset.callStatic.mint(dummy, ethers.utils.parseUnits('100', 18));
+    const result = await honestAsset.callStatic.mint(namedAccounts.dummy1.address, utils.parseUnits('100', 18));
     expect(result).to.equal(true);
-    await honestAsset.mint(dummy, ethers.utils.parseUnits('100', 18));
+    await honestAsset.mint(namedAccounts.dummy1.address, utils.parseUnits('100', 18));
 
-    const balance = await honestAsset.balanceOf(dummy);
-    expect(balance).to.equal(ethers.utils.parseUnits('100', 18));
+    const balance = await honestAsset.balanceOf(namedAccounts.dummy1.address);
+    expect(balance).to.equal(utils.parseUnits('100', 18));
 
-    await honestAsset.revokeRole(role, supervisor);
+    await proxyAdmin.revokeProxyRole(honestAsset.address, role, namedAccounts.dummy1.address);
   });
 
   it('burn without authorized, revert', async () => {
-    await expect(honestAsset.burn(dummy, ethers.utils.parseUnits('100', 18))).to.reverted;
+    await expect(honestAsset.burn(namedAccounts.dummy1.address, utils.parseUnits('100', 18))).to.reverted;
   });
 
   it('burn insufficient balance, revert', async () => {
-    await honestAsset.grantRole(role, supervisor);
+    await proxyAdmin.grantProxyRole(honestAsset.address, role, namedAccounts.dummy1.address);
 
-    await expect(honestAsset.burn(dummy, ethers.utils.parseUnits('200', 18))).to.reverted;
+    await expect(honestAsset.burn(namedAccounts.dummy1.address, utils.parseUnits('200', 18))).to.reverted;
 
-    const balance = await honestAsset.balanceOf(dummy);
-    expect(balance).to.equal(ethers.utils.parseUnits('100', 18));
+    const balance = await honestAsset.balanceOf(namedAccounts.dummy1.address);
+    expect(balance).to.equal(utils.parseUnits('100', 18));
   });
 
   it('burn 100 of dummy', async () => {
-    const result = await honestAsset.callStatic.burn(dummy, ethers.utils.parseUnits('100', 18));
+    const result = await honestAsset.callStatic.burn(namedAccounts.dummy1.address, utils.parseUnits('100', 18));
     expect(result).to.equal(true);
-    await honestAsset.burn(dummy, ethers.utils.parseUnits('100', 18));
+    await honestAsset.burn(namedAccounts.dummy1.address, utils.parseUnits('100', 18));
 
-    const balance = await honestAsset.balanceOf(dummy);
+    const balance = await honestAsset.balanceOf(namedAccounts.dummy1.address);
     expect(balance).to.equal(0);
 
-    await honestAsset.revokeRole(role, supervisor);
+    await proxyAdmin.revokeProxyRole(honestAsset.address, role, namedAccounts.dummy1.address);
   });
 });

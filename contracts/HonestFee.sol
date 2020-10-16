@@ -16,12 +16,17 @@ contract HonestFee is IHonestFee, AbstractHonestContract {
 
     address private _honestConfiguration;
     uint private _honestAssetRewardsPercentage;
+    uint private _claimableRewards;
+    uint private _reservedRewards;
 
-    function initialize(address honestConfiguration) external initializer() {
-        require(honestConfiguration != address(0), 'HonestFee.initialize: honestConfiguration address must be valid');
+    function initialize(address owner, address honestConfiguration_, uint honestAssetRewardsPercentage_) external initializer() {
+        require(owner != address(0), 'HonestFee.initialize: owner address must be valid');
+        require(honestConfiguration_ != address(0), 'HonestFee.initialize: honestConfiguration address must be valid');
+        require(honestAssetRewardsPercentage_ < uint(1e18), 'HonestFee.initialize: honestAsset rewards percentage must be less than 1');
 
-        super.initialize();
-        _honestConfiguration = honestConfiguration;
+        super.initialize(owner);
+        _honestConfiguration = honestConfiguration_;
+        _honestAssetRewardsPercentage = honestAssetRewardsPercentage_;
     }
 
     function totalFee() public override view returns (uint) {
@@ -33,35 +38,45 @@ contract HonestFee is IHonestFee, AbstractHonestContract {
         return _honestAssetRewardsPercentage;
     }
 
-    function honestAssetRewards() public override view returns (uint) {
-        return totalFee().mul(_honestAssetRewardsPercentage).div(uint(1e18));
+    function claimableRewards() public override view returns (uint) {
+        return _availableRewards().mul(_honestAssetRewardsPercentage).div(uint(1e18)).add(_claimableRewards);
     }
 
-    function distributeHonestAssetRewards(address account, uint price) external override returns (uint) {
+    function reservedRewards() public override view returns (uint) {
+        uint percentage = uint(1e18).sub(_honestAssetRewardsPercentage);
+        return _availableRewards().mul(percentage).div(uint(1e18)).add(_reservedRewards);
+    }
+
+    function distributeHonestAssetRewards(address account, uint price) external override onlyVault returns (uint) {
         require(account != address(0), 'HonestFee.distributeHonestAssetRewards: account must be valid');
 
-        uint rewards = honestAssetRewards();
+        uint rewards = claimableRewards();
         if (rewards > 0) {
-            address honestAsset = _honestAsset();
-            IERC20(honestAsset).safeTransfer(account, rewards);
+            IERC20(_honestAsset()).safeTransfer(account, rewards);
+            _reservedRewards = _reservedRewards.add(totalFee());
+            _claimableRewards = 0;
         }
 
-        return honestAssetRewards().mul(uint(1e18)).div(price);
+        return rewards.mul(uint(1e18)).div(price);
     }
 
-    function reward(address account, uint amount) external override onlySavings returns (uint) {
-        require(account != address(0), 'HonestFee.reward: account must be valid');
-        require(amount <= totalFee(), 'HonestFee.reward: insufficient fee');
+    function distributeReservedRewards(address account) external override onlyGovernor {
+        require(account != address(0), 'HonestFee.distributeReservedRewards: account must be valid');
 
-        address honestAsset = _honestAsset();
-        if (amount > 0) {
-            IERC20(honestAsset).safeTransfer(account, amount);
+        uint rewards = reservedRewards();
+        if (rewards > 0) {
+            IERC20(_honestAsset()).safeTransfer(account, rewards);
+            _claimableRewards = _claimableRewards.add(totalFee());
+            _reservedRewards = 0;
         }
-        return amount;
     }
 
     function _honestAsset() internal view returns (address) {
         return IHonestConfiguration(_honestConfiguration).honestAsset();
+    }
+
+    function _availableRewards() internal view returns (uint) {
+        return totalFee().sub(_claimableRewards).sub(_reservedRewards);
     }
 
     function setHonestAssetRewardsPercentage(uint percentage) external override onlyGovernor {

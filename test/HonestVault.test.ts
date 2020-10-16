@@ -1,53 +1,51 @@
-import {ethers} from '@nomiclabs/buidler';
+import {deployments, ethers} from '@nomiclabs/buidler';
 import {expect} from 'chai';
-import {Contract} from 'ethers';
+import {BigNumber, Contract, utils} from 'ethers';
 import * as MockBasketAsset from '../artifacts/MockBasketAsset.json';
-import {honestAssetDeployer} from '../scripts/HonestAsset.deploy';
-import {honestConfigurationDeployer} from '../scripts/HonestConfiguration.deploy';
-import {honestFeeDeployer} from '../scripts/HonestFee.deploy';
-import {honestVaultDeployer} from '../scripts/HonestValut.deploy';
-import {yearnV2IntegrationDeployer} from '../scripts/integrations/YearnV2Integration.deploy';
-import {Account} from './Common';
+import {getNamedAccounts, NamedAccounts} from '../scripts/HonestContract.test';
 
 describe('HonestVault', () => {
-  let supervisor: Account, dummy1: Account, dummy2: Account;
-  let honestAsset: Contract, honestConfiguration: Contract,
+  let namedAccounts: NamedAccounts;
+  let proxyAdmin: Contract, honestAsset: Contract, honestConfiguration: Contract, fee: Contract,
     yearnV2Integration: Contract, vault: Contract;
+  let basketAssets: string[];
 
   const initializeAccounts = async () => {
-    const accounts = await ethers.getSigners();
-    supervisor = await Account.initialize(accounts[0]);
-    dummy1 = await Account.initialize(accounts[1]);
-    dummy2 = await Account.initialize(accounts[2]);
+    namedAccounts = await getNamedAccounts();
   };
 
   const deployContracts = async () => {
-    honestAsset = await honestAssetDeployer.deployContracts();
-    honestConfiguration = await honestConfigurationDeployer.deployContracts(honestAsset);
-    yearnV2Integration = await yearnV2IntegrationDeployer.deployContracts(honestConfiguration);
-    const fee = await honestFeeDeployer.deployContracts(honestConfiguration);
-    vault = await honestVaultDeployer.deployContracts(honestConfiguration, yearnV2Integration, fee);
+    await deployments.fixture();
+    proxyAdmin = await ethers.getContract('DelayedProxyAdmin', namedAccounts.supervisor.signer);
+    honestAsset = await ethers.getContract('HonestAsset', namedAccounts.dealer.signer);
+    yearnV2Integration = await ethers.getContract('YearnV2Integration', namedAccounts.dealer.signer);
+    honestConfiguration = await ethers.getContract('HonestConfiguration', namedAccounts.dealer.signer);
+    fee = await ethers.getContract('HonestFee', namedAccounts.dealer.signer);
+    vault = await ethers.getContract('HonestVault', namedAccounts.dealer.signer);
+    basketAssets = await honestConfiguration.activeBasketAssets();
   };
 
   const grantRoles = async () => {
-    const savingsRole = await honestAsset.SAVINGS();
-    await yearnV2Integration.grantRole(savingsRole, vault.address);
+    const vaultRole = await honestAsset.VAULT();
+    await proxyAdmin.grantProxyRole(yearnV2Integration.address, vaultRole, vault.address);
+    await proxyAdmin.grantProxyRole(fee.address, vaultRole, vault.address);
 
-    const assetManagerRole = await vault.ASSET_MANAGER();
-    await vault.grantRole(assetManagerRole, supervisor.address);
+    const assetManagerRole = await honestAsset.ASSET_MANAGER();
+    await proxyAdmin.grantProxyRole(honestAsset.address, assetManagerRole, namedAccounts.dealer.address);
+
+    await proxyAdmin.grantProxyRole(vault.address, assetManagerRole, namedAccounts.dealer.address);
   };
 
   const mintTokens = async () => {
-    const basketAssets: string[] = await honestConfiguration.activeBasketAssets();
     for (let i = 0; i < basketAssets.length; ++i) {
       await mintBasketAsset(basketAssets[i], vault.address, '100');
     }
   };
 
   const mintBasketAsset = async (asset: string, account: string, amount: string): Promise<void> => {
-    const contract = new Contract(asset, MockBasketAsset.abi, supervisor.signer);
+    const contract = await ethers.getContractAt(MockBasketAsset.abi, asset, namedAccounts.supervisor.signer);
     const decimals = await contract.decimals();
-    await contract.mint(account, ethers.utils.parseUnits(amount, decimals));
+    await contract.mint(account, utils.parseUnits(amount, decimals));
   };
 
   before(async function () {
@@ -57,75 +55,84 @@ describe('HonestVault', () => {
     await mintTokens();
   });
 
-  it('dummy1 deposit', async () => {
-    await vault.deposit(dummy1.address, ethers.utils.parseUnits('100', 18));
-
-    const weight = await vault.weightOf(dummy1.address);
-    const share = await vault.shareOf(dummy1.address);
-    expect(weight).to.equal(ethers.utils.parseUnits('100', 18));
-    expect(share).to.equal(ethers.utils.parseUnits('100', 18));
-
-    const basketAssets: string[] = await honestConfiguration.activeBasketAssets();
+  const assertContractBalances = async (account: string, balances: string[]) => {
     for (let i = 0; i < basketAssets.length; ++i) {
-      const contract = new Contract(basketAssets[i], MockBasketAsset.abi, supervisor.signer);
+      const contract = await ethers.getContractAt(MockBasketAsset.abi, basketAssets[i], namedAccounts.supervisor.signer);
       const decimals = await contract.decimals();
-      const balance = await contract.balanceOf(vault.address);
-      expect(balance).to.equal(ethers.utils.parseUnits('75', decimals));
+      const balance = await contract.balanceOf(account);
+      if (balances[i].charAt(0) === '>') {
+        expect(balance).to.gt(utils.parseUnits(balances[i].substr(1), decimals));
+      } else if (balances[i].charAt(0) === '<') {
+        expect(balance).to.lt(utils.parseUnits(balances[i].substr(1), decimals));
+      } else if (balances[i].charAt(0) === '=') {
+        expect(balance).to.lt(utils.parseUnits(balances[i].substr(1), decimals));
+      } else {
+        expect(balance).to.equal(utils.parseUnits(balances[i], decimals));
+      }
     }
+  };
+
+  it('dummy1 deposit', async () => {
+    await assertContractBalances(vault.address, ['100', '100', '100', '100']);
+
+    await vault.deposit(namedAccounts.dummy1.address, utils.parseUnits('100', 18));
+
+    const weight = await vault.weightOf(namedAccounts.dummy1.address);
+    const share = await vault.shareOf(namedAccounts.dummy1.address);
+    expect(weight).to.equal(utils.parseUnits('100', 18));
+    expect(share).to.equal(utils.parseUnits('100', 18));
+
+    await assertContractBalances(vault.address, ['75', '75', '75', '75']);
   });
 
   it('dummy2 deposit', async () => {
-    await vault.deposit(dummy2.address, ethers.utils.parseUnits('100', 18));
+    await vault.deposit(namedAccounts.dummy2.address, utils.parseUnits('100', 18));
 
-    const weight = await vault.weightOf(dummy2.address);
-    const share = await vault.shareOf(dummy2.address);
-    expect(weight).to.equal(ethers.utils.parseUnits('100', 18));
-    expect(ethers.utils.parseUnits('100', 18).sub(share).abs()).to.lte(ethers.utils.parseUnits('1', 16));
+    const weight = await vault.weightOf(namedAccounts.dummy2.address);
+    const share = await vault.shareOf(namedAccounts.dummy2.address);
+    expect(weight).to.equal(utils.parseUnits('100', 18));
+    expect(share).to.lte(utils.parseUnits('100', 18));
 
-    const basketAssets: string[] = await honestConfiguration.activeBasketAssets();
-    for (let i = 0; i < basketAssets.length; ++i) {
-      const contract = new Contract(basketAssets[i], MockBasketAsset.abi, supervisor.signer);
-      const decimals = await contract.decimals();
-      const balance = await contract.balanceOf(vault.address);
-      expect(balance).to.equal(ethers.utils.parseUnits('50', decimals));
-    }
+    await assertContractBalances(vault.address, ['50', '50', '50', '50']);
+  });
+
+  it('distribute proportionally', async () => {
+    await vault.distributeProportionally(namedAccounts.dummy1.address, utils.parseUnits('100', 18));
+
+    await assertContractBalances(vault.address, ['25', '25', '25', '25']);
+    await assertContractBalances(namedAccounts.dummy1.address, ['25', '25', '25', '25']);
   });
 
   it('dummy1 withdraw insufficient', async () => {
-    await expect(vault.withdraw(dummy1.address, ethers.utils.parseUnits('200', 18))).to.reverted;
+    await expect(vault.withdraw(namedAccounts.dummy1.address, utils.parseUnits('200', 18))).to.reverted;
   });
 
   it('dummy1 withdraw', async () => {
-    await vault.withdraw(dummy1.address, ethers.utils.parseUnits('100', 18))
+    await vault.withdraw(namedAccounts.dummy1.address, utils.parseUnits('100', 18));
 
-    const weight = await vault.weightOf(dummy1.address);
-    const share = await vault.shareOf(dummy1.address);
-    expect(weight).to.equal(ethers.BigNumber.from('0'));
-    expect(share).to.equal(ethers.BigNumber.from('0'));
+    const weight = await vault.weightOf(namedAccounts.dummy1.address);
+    const share = await vault.shareOf(namedAccounts.dummy1.address);
+    expect(weight).to.equal(BigNumber.from('0'));
+    expect(share).to.equal(BigNumber.from('0'));
 
-    const basketAssets: string[] = await honestConfiguration.activeBasketAssets();
-    for (let i = 0; i < basketAssets.length; ++i) {
-      const contract = new Contract(basketAssets[i], MockBasketAsset.abi, supervisor.signer);
-      const decimals = await contract.decimals();
-      const balance = await contract.balanceOf(vault.address);
-      expect(balance).to.gte(ethers.utils.parseUnits('75', decimals));
-    }
+    await assertContractBalances(vault.address, ['>50', '>50', '>50', '>50']);
+  });
+
+  it('distribute manually', async () => {
+    await vault.distributeManually(namedAccounts.dummy2.address, [basketAssets[1], basketAssets[2]], [utils.parseUnits('25', 18), utils.parseUnits('25', 18)]);
+
+    await assertContractBalances(namedAccounts.dummy2.address, ['0', '25', '25', '0']);
+    await assertContractBalances(vault.address, ['>50', '>25', '>25', '>50']);
   });
 
   it('dummy2 withdraw', async () => {
-    await vault.withdraw(dummy2.address, ethers.utils.parseUnits('100', 18))
+    await vault.withdraw(namedAccounts.dummy2.address, utils.parseUnits('100', 18));
 
-    const weight = await vault.weightOf(dummy2.address);
-    const share = await vault.shareOf(dummy2.address);
-    expect(weight).to.equal(ethers.BigNumber.from('0'));
-    expect(share).to.equal(ethers.BigNumber.from('0'));
+    const weight = await vault.weightOf(namedAccounts.dummy2.address);
+    const share = await vault.shareOf(namedAccounts.dummy2.address);
+    expect(weight).to.equal(BigNumber.from('0'));
+    expect(share).to.equal(BigNumber.from('0'));
 
-    const basketAssets: string[] = await honestConfiguration.activeBasketAssets();
-    for (let i = 0; i < basketAssets.length; ++i) {
-      const contract = new Contract(basketAssets[i], MockBasketAsset.abi, supervisor.signer);
-      const decimals = await contract.decimals();
-      const balance = await contract.balanceOf(vault.address);
-      expect(balance).to.gte(ethers.utils.parseUnits('100', decimals));
-    }
+    await assertContractBalances(vault.address, ['>75', '>50', '>50', '>75']);
   });
 });
