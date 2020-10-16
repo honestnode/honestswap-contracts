@@ -1,12 +1,13 @@
 import {deployments, ethers} from '@nomiclabs/buidler';
 import {expect} from 'chai';
 import {Contract, utils} from 'ethers';
+import {getUpgradableContract} from '../scripts/HonestContract.deploy';
 import {expectAmount, getNamedAccounts, NamedAccounts} from '../scripts/HonestContract.test';
 
 describe('HonestAssetManager', () => {
 
   let namedAccounts: NamedAccounts;
-  let proxyAdmin: Contract, honestConfiguration: Contract, honestAsset: Contract, honestVault: Contract,
+  let honestConfiguration: Contract, honestAsset: Contract, honestVault: Contract,
     honestAssetManager: Contract;
   let dai: Contract, tusd: Contract, usdc: Contract, usdt: Contract;
 
@@ -17,11 +18,10 @@ describe('HonestAssetManager', () => {
   const deployContracts = async () => {
     await deployments.fixture();
 
-    proxyAdmin = await ethers.getContract('DelayedProxyAdmin', namedAccounts.supervisor.signer);
-    honestAsset = await ethers.getContract('HonestAsset', namedAccounts.dummy1.signer);
-    honestConfiguration = await ethers.getContract('HonestConfiguration', namedAccounts.dealer.signer);
-    honestVault = await ethers.getContract('HonestVault', namedAccounts.dealer.signer);
-    honestAssetManager = await ethers.getContract('HonestAssetManager', namedAccounts.dummy1.signer);
+    honestAsset = await getUpgradableContract('HonestAsset', namedAccounts.dummy1.signer);
+    honestConfiguration = await getUpgradableContract('HonestConfiguration', namedAccounts.dealer.signer);
+    honestVault = await getUpgradableContract('HonestVault', namedAccounts.dealer.signer);
+    honestAssetManager = await getUpgradableContract('HonestAssetManager', namedAccounts.dummy1.signer);
     dai = await ethers.getContract('MockDAI', namedAccounts.dummy1.signer);
     tusd = await ethers.getContract('MockTUSD', namedAccounts.dummy1.signer);
     usdc = await ethers.getContract('MockUSDC', namedAccounts.dummy1.signer);
@@ -97,7 +97,6 @@ describe('HonestAssetManager', () => {
     await honestAssetManager.withdraw(utils.parseUnits('40', 18));
 
     const amount = await honestAsset.balanceOf(namedAccounts.dummy1.address);
-    console.log('honestAsset amount: ', amount.toString());
     expect(amount).to.gte(utils.parseUnits('80', 18));
 
     await assertAssetBalances(honestVault.address, ['>0', '>0', '>0', '>0']);

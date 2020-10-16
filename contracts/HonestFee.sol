@@ -15,18 +15,14 @@ contract HonestFee is IHonestFee, AbstractHonestContract {
     using SafeMath for uint;
 
     address private _honestConfiguration;
-    uint private _honestAssetRewardsPercentage;
     uint private _claimableRewards;
     uint private _reservedRewards;
 
-    function initialize(address owner, address honestConfiguration_, uint honestAssetRewardsPercentage_) external initializer() {
-        require(owner != address(0), 'HonestFee.initialize: owner address must be valid');
+    function initialize(address honestConfiguration_) external initializer() {
         require(honestConfiguration_ != address(0), 'HonestFee.initialize: honestConfiguration address must be valid');
-        require(honestAssetRewardsPercentage_ < uint(1e18), 'HonestFee.initialize: honestAsset rewards percentage must be less than 1');
 
-        super.initialize(owner);
+        super.initialize();
         _honestConfiguration = honestConfiguration_;
-        _honestAssetRewardsPercentage = honestAssetRewardsPercentage_;
     }
 
     function totalFee() public override view returns (uint) {
@@ -34,20 +30,20 @@ contract HonestFee is IHonestFee, AbstractHonestContract {
         return IERC20(honestAsset).balanceOf(address(this));
     }
 
-    function honestAssetRewardsPercentage() public override view returns (uint) {
-        return _honestAssetRewardsPercentage;
+    function _claimableRewardsPercentage() internal view returns (uint) {
+        return IHonestConfiguration(_honestConfiguration).claimableRewardsPercentage();
     }
 
     function claimableRewards() public override view returns (uint) {
-        return _availableRewards().mul(_honestAssetRewardsPercentage).div(uint(1e18)).add(_claimableRewards);
+        return _availableRewards().mul(_claimableRewardsPercentage()).div(uint(1e18)).add(_claimableRewards);
     }
 
     function reservedRewards() public override view returns (uint) {
-        uint percentage = uint(1e18).sub(_honestAssetRewardsPercentage);
+        uint percentage = uint(1e18).sub(_claimableRewardsPercentage());
         return _availableRewards().mul(percentage).div(uint(1e18)).add(_reservedRewards);
     }
 
-    function distributeHonestAssetRewards(address account, uint price) external override onlyVault returns (uint) {
+    function distributeClaimableRewards(address account, uint price) external override onlyVault returns (uint) {
         require(account != address(0), 'HonestFee.distributeHonestAssetRewards: account must be valid');
 
         uint rewards = claimableRewards();
@@ -60,7 +56,7 @@ contract HonestFee is IHonestFee, AbstractHonestContract {
         return rewards.mul(uint(1e18)).div(price);
     }
 
-    function distributeReservedRewards(address account) external override onlyGovernor {
+    function distributeReservedRewards(address account) external override onlyOwner {
         require(account != address(0), 'HonestFee.distributeReservedRewards: account must be valid');
 
         uint rewards = reservedRewards();
@@ -77,11 +73,5 @@ contract HonestFee is IHonestFee, AbstractHonestContract {
 
     function _availableRewards() internal view returns (uint) {
         return totalFee().sub(_claimableRewards).sub(_reservedRewards);
-    }
-
-    function setHonestAssetRewardsPercentage(uint percentage) external override onlyGovernor {
-        require(percentage < uint(1e18), 'HonestFee.setHonestAssetRewardsPercentage: percentage should be less than 1');
-
-        _honestAssetRewardsPercentage = percentage;
     }
 }

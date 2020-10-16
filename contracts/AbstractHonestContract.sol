@@ -7,33 +7,46 @@ import {AccessControlUpgradeSafe} from '@openzeppelin/contracts-ethereum-package
 
 abstract contract AbstractHonestContract is Initializable, AccessControlUpgradeSafe {
 
-    bytes32 public constant ASSET = keccak256("HONEST_ASSET");
-    bytes32 public constant ASSET_MANAGER = keccak256("HONEST_ASSET_MANAGER");
-    bytes32 public constant VAULT = keccak256("HONEST_VAULT");
-    bytes32 public constant SAVINGS = keccak256("HONEST_SAVINGS");
-    bytes32 public constant GOVERNOR = keccak256("HONEST_GOVERNOR");
+    bytes32 private _assetManagerRole;
+    bytes32 private _vaultRole;
+    bytes32 private _governorRole;
 
-    function initialize(address owner) internal initializer() {
-        _setupRole(DEFAULT_ADMIN_ROLE, owner);
+    function initialize() internal initializer() {
+        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _assetManagerRole = keccak256("HONEST_ASSET_MANAGER");
+        _vaultRole = keccak256("HONEST_VAULT");
+        _governorRole = keccak256("HONEST_GOVERNOR");
+    }
+
+    function assetManagerRole() external view returns (bytes32) {
+        return _assetManagerRole;
+    }
+
+    function vaultRole() external view returns (bytes32) {
+        return _vaultRole;
+    }
+
+    function governorRole() external view returns (bytes32) {
+        return _governorRole;
+    }
+
+    function transferOwnership(address to) external {
+        grantRole(DEFAULT_ADMIN_ROLE, to);
+        revokeRole(DEFAULT_ADMIN_ROLE, _msgSender());
     }
 
     modifier onlyAssetManager {
-        require(hasRole(ASSET_MANAGER, msg.sender), "AccessControl: caller is not the AssetManager contract");
+        require(hasRole(_assetManagerRole, msg.sender), "AccessControl: caller is not the AssetManager contract");
         _;
     }
 
     modifier onlyVault {
-        require(hasRole(VAULT, msg.sender), "AccessControl: caller is not the Vault contract");
+        require(hasRole(_vaultRole, msg.sender), "AccessControl: caller is not the Vault contract");
         _;
     }
 
-    modifier onlySavings {
-        require(hasRole(SAVINGS, msg.sender), "AccessControl: caller is not the Savings contract");
-        _;
-    }
-
-    modifier onlyGovernor {
-        require(hasRole(GOVERNOR, msg.sender), "AccessControl: caller is not a governor");
+    modifier onlyOwner {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "AccessControl: caller is not the owner");
         _;
     }
 }

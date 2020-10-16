@@ -24,14 +24,17 @@ contract HonestConfiguration is IHonestConfiguration, AbstractHonestContract {
 
     uint private _redeemFeeRate;
 
+    uint private _claimableRewardsPercentage;
 
-    function initialize(address owner, address asset, address[] calldata bAssets, address[] calldata bAssetInvestments, uint swapFeeRate, uint redeemFeeRate) external initializer() {
-        require(owner != address(0), 'HonestConfiguration.initialize: owner address must be valid');
+    function initialize(address asset, address[] calldata bAssets, address[] calldata bAssetInvestments, uint swapFeeRate, uint redeemFeeRate, uint claimableRewardsPercentage) external initializer() {
         require(asset != address(0), 'HonestConfiguration.initialize: asset must be valid');
         require(bAssets.length > 0, 'HonestConfiguration.initialize: basket assets length must be greater than 0');
         require(bAssets.length == bAssetInvestments.length, 'HonestConfiguration.initialize: mismatch basket assets and investments length');
+        require(swapFeeRate < uint(1e18), 'HonestConfiguration.initialize: swap fee rate should be less than 1');
+        require(redeemFeeRate < uint(1e18), 'HonestConfiguration.initialize: redeem fee rate should be less than 1');
+        require(claimableRewardsPercentage < uint(1e18), 'HonestConfiguration.initialize: claimable percentage should be less than 1');
 
-        super.initialize(owner);
+        super.initialize();
         _honestAsset = asset;
         for (uint i; i < bAssets.length; ++i) {
             require(bAssets[i] != address(0), 'HonestConfiguration.initialize: basket asset must be valid');
@@ -44,6 +47,7 @@ contract HonestConfiguration is IHonestConfiguration, AbstractHonestContract {
         }
         _swapFeeRate = swapFeeRate;
         _redeemFeeRate = redeemFeeRate;
+        _claimableRewardsPercentage = claimableRewardsPercentage;
     }
 
     function honestAsset() external override view returns (address) {
@@ -90,12 +94,11 @@ contract HonestConfiguration is IHonestConfiguration, AbstractHonestContract {
         return _redeemFeeRate;
     }
 
-    function setHonestAsset(address asset) external override onlyGovernor {
-        require(asset != address(0), 'HonestConfiguration.setHonestAsset: asset must be valid');
-        _honestAsset = asset;
+    function claimableRewardsPercentage() external override view returns (uint) {
+        return _claimableRewardsPercentage;
     }
 
-    function addBasketAsset(address asset, address bAssetInvestment) external override onlyGovernor {
+    function addBasketAsset(address asset, address bAssetInvestment) external override onlyOwner {
         require(asset != address(0), 'HonestConfiguration.addBasketAsset: basket asset must be valid');
         require(bAssetInvestment != address(0), 'HonestConfiguration.addBasketAsset: basket asset investment integration must be valid');
 
@@ -107,7 +110,7 @@ contract HonestConfiguration is IHonestConfiguration, AbstractHonestContract {
         }
     }
 
-    function removeBasketAsset(address asset) external override onlyGovernor {
+    function removeBasketAsset(address asset) external override onlyOwner {
         require(asset != address(0), 'HonestConfiguration.removeBasketAsset: basket asset must be valid');
 
         if (_basketAssets.contains(asset)) {
@@ -120,7 +123,7 @@ contract HonestConfiguration is IHonestConfiguration, AbstractHonestContract {
         }
     }
 
-    function activateBasketAsset(address asset) external override onlyGovernor {
+    function activateBasketAsset(address asset) external override onlyOwner {
         require(asset != address(0), 'HonestConfiguration.activateBasketAsset: basket asset must be valid');
 
         if (_basketAssets.contains(asset) && !_basketAssetStates[asset]) {
@@ -129,7 +132,7 @@ contract HonestConfiguration is IHonestConfiguration, AbstractHonestContract {
         }
     }
 
-    function deactivateBasketAsset(address asset) external override onlyGovernor {
+    function deactivateBasketAsset(address asset) external override onlyOwner {
         require(asset != address(0), 'HonestConfiguration.deactivateBasketAsset: basket asset must be valid');
 
         if (_basketAssets.contains(asset) && _basketAssetStates[asset]) {
@@ -138,11 +141,22 @@ contract HonestConfiguration is IHonestConfiguration, AbstractHonestContract {
         }
     }
 
-    function setSwapFeeRate(uint feeRate) external override onlyGovernor {
+    function setSwapFeeRate(uint feeRate) external override onlyOwner {
+        require(feeRate < uint(1e18), 'HonestConfiguration.setSwapFeeRate: swap fee rate should be less than 1');
+
         _swapFeeRate = feeRate;
     }
 
-    function setRedeemFeeRate(uint feeRate) external override onlyGovernor {
+    function setRedeemFeeRate(uint feeRate) external override onlyOwner {
+        require(feeRate < uint(1e18), 'HonestConfiguration.setRedeemFeeRate: redeem fee rate should be less than 1');
+
         _redeemFeeRate = feeRate;
+    }
+
+
+    function setClaimableRewardsPercentage(uint percentage) external override onlyOwner {
+        require(percentage < uint(1e18), 'HonestConfiguration.setHonestAssetRewardsPercentage: claimable percentage should be less than 1');
+
+        _claimableRewardsPercentage = percentage;
     }
 }

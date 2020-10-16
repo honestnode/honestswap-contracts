@@ -1,50 +1,41 @@
-import {ethers} from '@nomiclabs/buidler';
-import {BuidlerRuntimeEnvironment} from '@nomiclabs/buidler/types';
-import {Contract, ContractFactory} from 'ethers';
+import { ethers } from '@nomiclabs/buidler';
+import {ABI, BuidlerRuntimeEnvironment, Deployment} from '@nomiclabs/buidler/types';
+import {Signer, utils} from 'ethers';
 
-export abstract class HonestContractDeployer {
-
-  protected async deploy(name: string, ...args: any[]): Promise<Contract> {
-    const contract: ContractFactory = await ethers.getContractFactory(name);
-    return await contract.deploy(...args);
-  }
-
-  protected async deployUpgradable(name: string, ...args: any[]): Promise<Contract> {
-    return new Contract('', []);
-    // const contract = await ethers.getContractFactory(name);
-    // return await upgrades.deployProxy(contract, args, {unsafeAllowCustomTypes: true});
-  }
-}
-
-export const deployUpgradableContract = async (bre: BuidlerRuntimeEnvironment, contractName: string, ...args: any[]): Promise<string> => {
+export const deployContract = async (bre: BuidlerRuntimeEnvironment, name: string, contractName: string, ...args: any[]): Promise<Deployment> => {
   const {deployments, getNamedAccounts} = bre;
-  const {deploy, log, get} = deployments;
+  const {deploy} = deployments;
   const {supervisor} = await getNamedAccounts();
 
-  const proxyAdmin = await get('DelayedProxyAdmin');
-
-  log(`--- ${contractName}`)
-  const contract = await deploy(contractName, {
-    from: supervisor,
-    proxy: {owner: proxyAdmin.address, methodName: 'initialize'},
-    log: true,
-    args: [proxyAdmin.address, ...args]
-  });
-
-  return contract.address;
-};
-
-export const deployContract = async (bre: BuidlerRuntimeEnvironment, contractName: string, ...args: any[]): Promise<string> => {
-  const {deployments, getNamedAccounts} = bre;
-  const {deploy, log} = deployments;
-  const {supervisor} = await getNamedAccounts();
-
-  log(`--- ${contractName}`)
-  const contract = await deploy(contractName, {
+  return await deploy(name, {
+    contract: contractName,
     from: supervisor,
     log: true,
     args: args
   });
+};
 
-  return contract.address;
+export const deployUpgradableContract = async (bre: BuidlerRuntimeEnvironment, contractName: string, ...args: any[]): Promise<string> => {
+  const {deployments} = bre;
+  const {log, get} = deployments;
+
+  log(`--- ${contractName}`);
+
+  const proxyAdmin = await get('ProxyAdmin');
+  const implementation = await deployContract(bre, `${contractName}Implementation`, contractName);
+  const data: string = new utils.Interface(implementation.abi).encodeFunctionData('initialize', [...args]);
+  const proxy = await deployContract(bre, `${contractName}Proxy`, 'TransparentUpgradeableProxy', implementation.address, proxyAdmin.address, data);
+
+  return proxy.address;
+};
+
+export const deployStandardContract = async (bre: BuidlerRuntimeEnvironment, contractName: string, ...args: any[]): Promise<string> => {
+  const deployment = await deployContract(bre, contractName, contractName, ...args);
+  return deployment.address;
+};
+
+export const getUpgradableContract = async (name: string, signer?: Signer | string) => {
+  const artifact = require(`../artifacts/${name}.json`);
+  const proxy = await ethers.getContract(`${name}Proxy`);
+  return ethers.getContractAt(artifact.abi, proxy.address, signer);
 };

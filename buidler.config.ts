@@ -15,10 +15,14 @@ const config: BuidlerConfig = {
     dummy2: 2,
     supervisor: 9
   },
+  paths: {
+    deploy: 'deploy',
+    deployments: 'deployments',
+  },
   networks: {
     buidlerevm: {
       // loggingEnabled: true,
-      gas: 'auto'
+      gas: 'auto',
     },
     rinkeby: {
       url: `https://rinkeby.infura.io/v3/${infuraKey}`,

@@ -1,8 +1,8 @@
 import {BuidlerRuntimeEnvironment, DeployFunction} from '@nomiclabs/buidler/types';
-import {deployUpgradableContract} from '../scripts/HonestContract.deploy';
+import {deployUpgradableContract, getUpgradableContract} from '../scripts/HonestContract.deploy';
 
 const deployYearnV2Integration: DeployFunction = async (bre: BuidlerRuntimeEnvironment) => {
-  const honestConfiguration = await bre.deployments.get('HonestConfiguration');
+  const honestConfiguration = await getUpgradableContract('HonestConfiguration');
   await deployUpgradableContract(bre, 'YearnV2Integration', honestConfiguration.address);
 };
 

@@ -1,11 +1,12 @@
 import {deployments, ethers} from '@nomiclabs/buidler';
 import {expect} from 'chai';
 import {Contract, utils} from 'ethers';
+import {getUpgradableContract} from '../scripts/HonestContract.deploy';
 import {getNamedAccounts, NamedAccounts} from '../scripts/HonestContract.test';
 
 describe('HonestConfiguration', () => {
   let namedAccounts: NamedAccounts;
-  let proxyAdmin: Contract, honestAsset: Contract, honestConfiguration: Contract, governorRole: string;
+  let honestAsset: Contract, honestConfiguration: Contract, governorRole: string;
   let dai: Contract, tusd: Contract, usdc: Contract, usdt: Contract;
   let yDAI: Contract, yTUSD: Contract, yUSDC: Contract, yUSDT: Contract;
 
@@ -15,9 +16,8 @@ describe('HonestConfiguration', () => {
 
   const deployContracts = async () => {
     await deployments.fixture();
-    proxyAdmin = await ethers.getContract('DelayedProxyAdmin', namedAccounts.supervisor.signer);
-    honestAsset = await ethers.getContract('HonestAsset', namedAccounts.dealer.signer);
-    honestConfiguration = await ethers.getContract('HonestConfiguration', namedAccounts.dealer.signer);
+    honestAsset = await getUpgradableContract('HonestAsset', namedAccounts.dealer.signer);
+    honestConfiguration = await getUpgradableContract('HonestConfiguration', namedAccounts.dealer.signer);
     dai = await ethers.getContract('MockDAI', namedAccounts.supervisor.signer);
     tusd = await ethers.getContract('MockTUSD', namedAccounts.supervisor.signer);
     usdc = await ethers.getContract('MockUSDC', namedAccounts.supervisor.signer);
@@ -26,10 +26,10 @@ describe('HonestConfiguration', () => {
     yTUSD = await ethers.getContract('MockYTUSD', namedAccounts.supervisor.signer);
     yUSDC = await ethers.getContract('MockYUSDC', namedAccounts.supervisor.signer);
     yUSDT = await ethers.getContract('MockYUSDT', namedAccounts.supervisor.signer);
-    governorRole = await honestConfiguration.GOVERNOR();
+    governorRole = await honestConfiguration.DEFAULT_ADMIN_ROLE();
   };
 
-  before(async function () {
+  before(async () => {
     await initializeAccounts();
     await deployContracts();
   });
@@ -38,23 +38,6 @@ describe('HonestConfiguration', () => {
     it('get initial honest asset', async () => {
       const address = await honestConfiguration.honestAsset();
       expect(address).to.equal(honestAsset.address);
-    });
-
-    it('set honest asset of address(0)', async () => {
-      await expect(honestConfiguration.setHonestAsset('0x0000000000000000000000000000000000000000')).to.reverted;
-    });
-
-    it('set honest asset', async () => {
-      await proxyAdmin.grantProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
-
-      const newContract = await deployments.deploy('NewHonestAsset', {contract: 'HonestAsset', from: namedAccounts.dealer.address});
-      expect(newContract.address).not.equal(honestAsset.address);
-      await honestConfiguration.setHonestAsset(newContract.address);
-
-      const asset = await honestConfiguration.honestAsset();
-      expect(asset).to.equal(newContract.address);
-
-      await proxyAdmin.revokeProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
     });
   });
 
@@ -98,7 +81,7 @@ describe('HonestConfiguration', () => {
     });
 
     it('deactivate basket assets', async () => {
-      await proxyAdmin.grantProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
+      await namedAccounts.supervisor.connect(honestConfiguration).grantRole(governorRole, namedAccounts.dealer.address);
 
       await honestConfiguration.deactivateBasketAsset(dai.address);
       await honestConfiguration.deactivateBasketAsset(tusd.address);
@@ -112,7 +95,8 @@ describe('HonestConfiguration', () => {
       await assertBasketAssetIntegrations({
         [usdt.address]: yUSDT.address
       }, [dai.address, tusd.address, usdc.address]);
-      await proxyAdmin.revokeProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
+
+      await namedAccounts.supervisor.connect(honestConfiguration).revokeRole(governorRole, namedAccounts.dealer.address);
     });
 
     it('activate basket assets without authorization', async () => {
@@ -120,7 +104,8 @@ describe('HonestConfiguration', () => {
     });
 
     it('activate basket assets', async () => {
-      await proxyAdmin.grantProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
+      await namedAccounts.supervisor.connect(honestConfiguration).grantRole(governorRole, namedAccounts.dealer.address);
+
       await honestConfiguration.activateBasketAsset(dai.address);
       await honestConfiguration.activateBasketAsset(usdc.address);
       await assertBasketAssets({
@@ -134,7 +119,8 @@ describe('HonestConfiguration', () => {
         [usdc.address]: yUSDC.address,
         [usdt.address]: yUSDT.address
       }, [tusd.address]);
-      await proxyAdmin.revokeProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
+
+      await namedAccounts.supervisor.connect(honestConfiguration).revokeRole(governorRole, namedAccounts.dealer.address);
     });
 
     it('remove basket assets without authorization', async () => {
@@ -142,7 +128,7 @@ describe('HonestConfiguration', () => {
     });
 
     it('remove basket assets', async () => {
-      await proxyAdmin.grantProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
+      await namedAccounts.supervisor.connect(honestConfiguration).grantRole(governorRole, namedAccounts.dealer.address);
 
       await honestConfiguration.removeBasketAsset(tusd.address);
       await honestConfiguration.removeBasketAsset(usdc.address);
@@ -151,7 +137,8 @@ describe('HonestConfiguration', () => {
       await assertBasketAssetIntegrations({
         [dai.address]: yDAI.address
       }, [tusd.address, usdc.address, usdt.address]);
-      await proxyAdmin.revokeProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
+
+      await namedAccounts.supervisor.connect(honestConfiguration).revokeRole(governorRole, namedAccounts.dealer.address);
     });
 
     it('add basket assets without authorization', async () => {
@@ -159,7 +146,8 @@ describe('HonestConfiguration', () => {
     });
 
     it('add basket assets', async () => {
-      await proxyAdmin.grantProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
+      await namedAccounts.supervisor.connect(honestConfiguration).grantRole(governorRole, namedAccounts.dealer.address);
+
       await honestConfiguration.addBasketAsset(tusd.address, yTUSD.address);
       await honestConfiguration.addBasketAsset(usdc.address, yUSDC.address);
       await honestConfiguration.addBasketAsset(usdt.address, yUSDT.address);
@@ -170,7 +158,8 @@ describe('HonestConfiguration', () => {
         [usdc.address]: yUSDC.address,
         [usdt.address]: yUSDT.address
       }, []);
-      await proxyAdmin.revokeProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
+
+      await namedAccounts.supervisor.connect(honestConfiguration).revokeRole(governorRole, namedAccounts.dealer.address);
     });
   });
 
@@ -188,7 +177,7 @@ describe('HonestConfiguration', () => {
     });
 
     it('set fee rates without authorization', async () => {
-      await proxyAdmin.grantProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
+      await namedAccounts.supervisor.connect(honestConfiguration).grantRole(governorRole, namedAccounts.dealer.address);
 
       await honestConfiguration.setSwapFeeRate(utils.parseUnits('4', 16));
       await honestConfiguration.setRedeemFeeRate(utils.parseUnits('5', 16));
@@ -198,7 +187,7 @@ describe('HonestConfiguration', () => {
       expect(swapFeeRate).to.equal(utils.parseUnits('4', 16));
       expect(redeemFeeRate).to.equal(utils.parseUnits('5', 16));
 
-      await proxyAdmin.revokeProxyRole(honestConfiguration.address, governorRole, namedAccounts.dealer.address);
+      await namedAccounts.supervisor.connect(honestConfiguration).revokeRole(governorRole, namedAccounts.dealer.address);
     });
   });
 });

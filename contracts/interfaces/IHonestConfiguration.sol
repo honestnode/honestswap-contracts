@@ -18,7 +18,7 @@ interface IHonestConfiguration {
 
     function redeemFeeRate() external view returns (uint);
 
-    function setHonestAsset(address asset) external;
+    function claimableRewardsPercentage() external view returns (uint);
 
     function addBasketAsset(address asset, address bAssetInvestment) external;
 
@@ -31,4 +31,6 @@ interface IHonestConfiguration {
     function setSwapFeeRate(uint feeRate) external;
 
     function setRedeemFeeRate(uint feeRate) external;
+
+    function setClaimableRewardsPercentage(uint percentage) external;
 }

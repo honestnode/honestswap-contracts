@@ -32,13 +32,12 @@ contract HonestVault is IHonestVault, AbstractHonestContract {
     uint private _totalWeight;
     uint private _totalShare;
 
-    function initialize(address owner, address honestConfiguration_, address investmentIntegration_, address honestFee_) external initializer() {
-        require(owner != address(0), 'HonestVault.initialize: owner address must be valid');
+    function initialize(address honestConfiguration_, address investmentIntegration_, address honestFee_) external initializer() {
         require(honestConfiguration_ != address(0), 'HonestVault.initialize: honestConfiguration must be valid');
         require(investmentIntegration_ != address(0), 'HonestVault.initialize: investmentIntegration must be valid');
         require(honestFee_ != address(0), 'HonestVault.initialize: honestFee must be valid');
 
-        super.initialize(owner);
+        super.initialize();
         _honestConfiguration = honestConfiguration_;
         _investmentIntegration = investmentIntegration_;
         _honestFee = honestFee_;
@@ -111,7 +110,7 @@ contract HonestVault is IHonestVault, AbstractHonestContract {
         (address[] memory assets, uint[] memory shares, uint totalShare, uint price) = IInvestmentIntegration(_investmentIntegration).shares();
 
         if (feeAmount > 0) {
-            IHonestFee(_honestFee).distributeHonestAssetRewards(account, shareValue());
+            IHonestFee(_honestFee).distributeClaimableRewards(account, shareValue());
         }
         uint actualShare = collectAmount.sub(feeAmount).mul(uint(1e18)).div(price);
 
@@ -219,23 +218,5 @@ contract HonestVault is IHonestVault, AbstractHonestContract {
             IInvestmentIntegration(_investmentIntegration).collect(account, assets[i], share);
         }
         _invest(total);
-    }
-
-    function setHonestConfiguration(address honestConfiguration_) external override onlyGovernor {
-        require(honestConfiguration_ != address(0), 'HonestVault.setHonestConfiguration: honestConfiguration must be valid');
-
-        _honestConfiguration = honestConfiguration_;
-    }
-
-    function setInvestmentIntegration(address investmentIntegration_) external override onlyGovernor {
-        require(investmentIntegration_ != address(0), 'HonestVault.setInvestmentIntegration: investmentIntegration must be valid');
-
-        _investmentIntegration = investmentIntegration_;
-    }
-
-    function setHonestFee(address honestFee_) external override onlyGovernor {
-        require(honestFee_ != address(0), 'HonestVault.setHonestFee: honestFee must be valid');
-
-        _honestFee = honestFee_;
     }
 }

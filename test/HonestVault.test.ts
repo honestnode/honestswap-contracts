@@ -2,11 +2,12 @@ import {deployments, ethers} from '@nomiclabs/buidler';
 import {expect} from 'chai';
 import {BigNumber, Contract, utils} from 'ethers';
 import * as MockBasketAsset from '../artifacts/MockBasketAsset.json';
+import {getUpgradableContract} from '../scripts/HonestContract.deploy';
 import {getNamedAccounts, NamedAccounts} from '../scripts/HonestContract.test';
 
 describe('HonestVault', () => {
   let namedAccounts: NamedAccounts;
-  let proxyAdmin: Contract, honestAsset: Contract, honestConfiguration: Contract, fee: Contract,
+  let honestAsset: Contract, honestConfiguration: Contract, fee: Contract,
     yearnV2Integration: Contract, vault: Contract;
   let basketAssets: string[];
 
@@ -16,24 +17,18 @@ describe('HonestVault', () => {
 
   const deployContracts = async () => {
     await deployments.fixture();
-    proxyAdmin = await ethers.getContract('DelayedProxyAdmin', namedAccounts.supervisor.signer);
-    honestAsset = await ethers.getContract('HonestAsset', namedAccounts.dealer.signer);
-    yearnV2Integration = await ethers.getContract('YearnV2Integration', namedAccounts.dealer.signer);
-    honestConfiguration = await ethers.getContract('HonestConfiguration', namedAccounts.dealer.signer);
-    fee = await ethers.getContract('HonestFee', namedAccounts.dealer.signer);
-    vault = await ethers.getContract('HonestVault', namedAccounts.dealer.signer);
+    honestAsset = await getUpgradableContract('HonestAsset', namedAccounts.dealer.signer);
+    yearnV2Integration = await getUpgradableContract('YearnV2Integration', namedAccounts.dealer.signer);
+    honestConfiguration = await getUpgradableContract('HonestConfiguration', namedAccounts.dealer.signer);
+    fee = await getUpgradableContract('HonestFee', namedAccounts.dealer.signer);
+    vault = await getUpgradableContract('HonestVault', namedAccounts.dealer.signer);
     basketAssets = await honestConfiguration.activeBasketAssets();
   };
 
   const grantRoles = async () => {
-    const vaultRole = await honestAsset.VAULT();
-    await proxyAdmin.grantProxyRole(yearnV2Integration.address, vaultRole, vault.address);
-    await proxyAdmin.grantProxyRole(fee.address, vaultRole, vault.address);
-
-    const assetManagerRole = await honestAsset.ASSET_MANAGER();
-    await proxyAdmin.grantProxyRole(honestAsset.address, assetManagerRole, namedAccounts.dealer.address);
-
-    await proxyAdmin.grantProxyRole(vault.address, assetManagerRole, namedAccounts.dealer.address);
+    const assetManagerRole = await honestAsset.assetManagerRole();
+    namedAccounts.supervisor.connect(honestAsset).grantRole(assetManagerRole, namedAccounts.dealer.address);
+    namedAccounts.supervisor.connect(vault).grantRole(assetManagerRole, namedAccounts.dealer.address);
   };
 
   const mintTokens = async () => {
@@ -48,7 +43,7 @@ describe('HonestVault', () => {
     await contract.mint(account, utils.parseUnits(amount, decimals));
   };
 
-  before(async function () {
+  before(async () => {
     await initializeAccounts();
     await deployContracts();
     await grantRoles();

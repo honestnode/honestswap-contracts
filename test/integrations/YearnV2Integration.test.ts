@@ -2,12 +2,13 @@ import {deployments, ethers} from '@nomiclabs/buidler';
 import {expect} from 'chai';
 import {Contract, utils} from 'ethers';
 import * as yTokenV2 from '../../artifacts/MockYTokenV2.json';
+import {getUpgradableContract} from '../../scripts/HonestContract.deploy';
 import {getNamedAccounts, NamedAccounts} from '../../scripts/HonestContract.test';
 
 describe('YearnV2Integration', () => {
 
   let namedAccounts: NamedAccounts;
-  let proxyAdmin: Contract, honestConfiguration: Contract, yearnV2Integration: Contract, vaultRole: string;
+  let honestConfiguration: Contract, yearnV2Integration: Contract, vaultRole: string;
 
   const initializeAccounts = async () => {
     namedAccounts = await getNamedAccounts();
@@ -16,15 +17,14 @@ describe('YearnV2Integration', () => {
   const deployContracts = async () => {
     await deployments.fixture();
 
-    proxyAdmin = await ethers.getContract('DelayedProxyAdmin', namedAccounts.supervisor.signer);
-    honestConfiguration = await ethers.getContract('HonestConfiguration', namedAccounts.dummy1.signer);
-    yearnV2Integration = await ethers.getContract('YearnV2Integration', namedAccounts.dummy1.signer);
+    honestConfiguration = await getUpgradableContract('HonestConfiguration', namedAccounts.dummy1.signer);
+    yearnV2Integration = await getUpgradableContract('YearnV2Integration', namedAccounts.dummy1.signer);
   };
 
   before(async () => {
     await initializeAccounts();
     await deployContracts();
-    vaultRole = await yearnV2Integration.VAULT();
+    vaultRole = await yearnV2Integration.vaultRole();
   });
 
   it('invest without authorization', async () => {
@@ -36,7 +36,7 @@ describe('YearnV2Integration', () => {
   });
 
   it('invest', async () => {
-    await proxyAdmin.grantProxyRole(yearnV2Integration.address, vaultRole, namedAccounts.dummy1.address);
+    await namedAccounts.supervisor.connect(yearnV2Integration).grantRole(vaultRole, namedAccounts.dummy1.address);
     const account = namedAccounts.dummy1.address;
 
     const assets = await honestConfiguration.activeBasketAssets();
@@ -52,7 +52,7 @@ describe('YearnV2Integration', () => {
       expect(await yearnV2Integration.shareOf(asset)).to.lte(shares);
     }
 
-    await proxyAdmin.revokeProxyRole(yearnV2Integration.address, vaultRole, namedAccounts.dummy1.address);
+    await namedAccounts.supervisor.connect(yearnV2Integration).revokeRole(vaultRole, namedAccounts.dummy1.address);
   });
 
   it('collect without authorization', async () => {
@@ -66,7 +66,7 @@ describe('YearnV2Integration', () => {
 
   it('collect', async () => {
     const account = namedAccounts.dummy1.address;
-    await proxyAdmin.grantProxyRole(yearnV2Integration.address, vaultRole, namedAccounts.dummy1.address);
+    await namedAccounts.supervisor.connect(yearnV2Integration).grantRole(vaultRole, namedAccounts.dummy1.address);
 
     const assets = await honestConfiguration.activeBasketAssets();
     for (const asset of assets) {
@@ -78,6 +78,6 @@ describe('YearnV2Integration', () => {
       expect(balance).to.gte(utils.parseUnits('100', decimals));
     }
 
-    await proxyAdmin.revokeProxyRole(yearnV2Integration.address, vaultRole, namedAccounts.dummy1.address);
+    await namedAccounts.supervisor.connect(yearnV2Integration).revokeRole(vaultRole, namedAccounts.dummy1.address);
   });
 });

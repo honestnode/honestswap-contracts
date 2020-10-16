@@ -1,10 +1,9 @@
 import {BuidlerRuntimeEnvironment, DeployFunction} from '@nomiclabs/buidler/types';
-import {ethers} from 'ethers';
-import {deployUpgradableContract} from '../scripts/HonestContract.deploy';
+import {deployUpgradableContract, getUpgradableContract} from '../scripts/HonestContract.deploy';
 
 const deployHonestFee: DeployFunction = async (bre: BuidlerRuntimeEnvironment) => {
-  const honestConfiguration = await bre.deployments.get('HonestConfiguration');
-  await deployUpgradableContract(bre, 'HonestFee', honestConfiguration.address, ethers.utils.parseUnits('8', 17));
+  const honestConfiguration = await getUpgradableContract('HonestConfiguration');
+  await deployUpgradableContract(bre, 'HonestFee', honestConfiguration.address);
 };
 
 export default deployHonestFee;

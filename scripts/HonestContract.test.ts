@@ -1,6 +1,6 @@
 import {ethers} from '@nomiclabs/buidler';
 import {expect} from "chai";
-import {Contract, Signer, utils} from 'ethers';
+import {BigNumber, Contract, Signer, utils} from 'ethers';
 
 export class Account {
   readonly signer: Signer;
@@ -49,3 +49,13 @@ export const expectAmount = (amount: string, expected: string, decimals: number 
     expect(amount).to.equal(utils.parseUnits(expected, decimals));
   }
 };
+
+export const getBlockTimestamp = async () : Promise<number> => {
+  await ethers.provider.send("evm_mine", []);
+  const block = await ethers.provider.getBlock(ethers.provider.blockNumber);
+  return block.timestamp;
+};
+
+export const setBlockTimestamp = async (timestamp: number) => {
+  await ethers.provider.send("evm_setNextBlockTimestamp", [timestamp])
+}

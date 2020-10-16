@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+
 pragma solidity ^0.6.0;
 
 import {SafeMath} from '@openzeppelin/contracts/math/SafeMath.sol';
@@ -35,9 +37,6 @@ contract DelayedProxyAdmin is AccessControl {
     mapping(address => Request) public requests;
 
     constructor(uint delay_) public {
-        require(delay_ >= MINIMUM_DELAY, "DelayedProxyAdmin.constructor: delay must exceed minimum delay");
-        require(delay_ <= MAXIMUM_DELAY, "DelayedProxyAdmin.constructor: delay must not exceed maximum delay");
-
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _setupRole(GOVERNOR, _msgSender());
         delay = delay_;
@@ -153,7 +152,6 @@ contract DelayedProxyAdmin is AccessControl {
         // We need to manually run the static call since the getter cannot be flagged as view
         // bytes4(keccak256("admin()")) == 0xf851a440
         (bool success, bytes memory returndata) = proxy.staticcall(hex"f851a440");
-        require(success, "Call failed");
         return abi.decode(returndata, (address));
     }
 

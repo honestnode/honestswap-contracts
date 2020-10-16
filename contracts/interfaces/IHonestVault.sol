@@ -25,10 +25,4 @@ interface IHonestVault {
     function distributeProportionally(address account, uint amount) external;
 
     function distributeManually(address account, address[] calldata assets, uint[] calldata amounts) external;
-
-    function setHonestConfiguration(address honestConfiguration_) external;
-
-    function setInvestmentIntegration(address investmentIntegration_) external;
-
-    function setHonestFee(address honestFee_) external;
 }

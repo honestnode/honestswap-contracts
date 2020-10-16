@@ -28,11 +28,10 @@ contract YearnV2Integration is IInvestmentIntegration, AbstractHonestContract, R
 
     address private _honestConfiguration;
 
-    function initialize(address owner, address honestConfiguration) external initializer() {
-        require(owner != address(0), 'YearnV2Integration.initialize: owner address must be valid');
+    function initialize(address honestConfiguration) external initializer() {
         require(honestConfiguration != address(0), 'YearnV2Integration.initialize: honestConfiguration address must be valid');
 
-        super.initialize(owner);
+        super.initialize();
         __ReentrancyGuard_init();
         _honestConfiguration = honestConfiguration;
     }

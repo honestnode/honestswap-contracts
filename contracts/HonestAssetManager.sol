@@ -23,12 +23,11 @@ contract HonestAssetManager is IHonestAssetManager, AbstractHonestContract {
     using SafeMath for uint;
     using StandardERC20 for ERC20;
 
-    function initialize(address owner, address honestConfiguration_, address honestVault_) external initializer() {
-        require(owner != address(0), 'HonestAssetManager.initialize: owner address must be valid');
+    function initialize(address honestConfiguration_, address honestVault_) external initializer() {
         require(honestConfiguration_ != address(0), 'HonestAssetManager.initialize: honestConfiguration must be valid');
         require(honestVault_ != address(0), 'HonestAssetManager.initialize: honestVault must be valid');
 
-        super.initialize(owner);
+        super.initialize();
         _honestConfiguration = honestConfiguration_;
         _honestVault = honestVault_;
     }
