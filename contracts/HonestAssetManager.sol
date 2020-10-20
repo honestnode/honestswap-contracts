@@ -88,14 +88,14 @@ contract HonestAssetManager is IHonestAssetManager, AbstractHonestContract {
         uint standardAmount = ERC20(from).standardize(amount);
         uint fee = standardAmount.mul(swapFeeRate).div(uint(1e18));
 
-        ERC20(from).standardTransferFrom(_msgSender(), _honestVault, standardAmount.add(fee));
+        ERC20(from).standardTransferFrom(_msgSender(), _honestVault, standardAmount);
 
         IHonestAsset(_honestAsset()).mint(IHonestVault(_honestVault).honestFee(), fee);
 
         address[] memory assets = new address[](1);
         assets[0] = to;
         uint[] memory amounts = new uint[](1);
-        amounts[0] = standardAmount;
+        amounts[0] = standardAmount.sub(fee);
         IHonestVault(_honestVault).distributeManually(_msgSender(), assets, amounts);
     }
 

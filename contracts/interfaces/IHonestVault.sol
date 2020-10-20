@@ -18,6 +18,8 @@ interface IHonestVault {
 
     function weightOf(address account) external view returns (uint);
 
+    function totalWeight() external view returns (uint);
+
     function shareOf(address account) external view returns (uint);
 
     function shareValue() external view returns (uint);

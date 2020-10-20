@@ -13,6 +13,8 @@ const deployHonestConfiguration: DeployFunction = async (bre: BuidlerRuntimeEnvi
 const deployBasketAssets = async (bre: BuidlerRuntimeEnvironment): Promise<string[]> => {
   switch (bre.network.name) {
     case 'buidlerevm':
+    case 'localhost':
+    case 'ropsten':
       const daiAddress = await deployStandardContract(bre, 'MockDAI');
       const tusdAddress = await deployStandardContract(bre, 'MockTUSD');
       const usdcAddress = await deployStandardContract(bre, 'MockUSDC');
@@ -26,6 +28,8 @@ const deployBasketAssets = async (bre: BuidlerRuntimeEnvironment): Promise<strin
 const deployInvestments = async (bre: BuidlerRuntimeEnvironment): Promise<string[]> => {
   switch (bre.network.name) {
     case 'buidlerevm':
+    case 'localhost':
+    case 'ropsten':
       const supervisor = (await bre.getNamedAccounts())['supervisor'];
       const dai = await bre.ethers.getContract('MockDAI', supervisor);
       const tusd = await bre.ethers.getContract('MockTUSD', supervisor);

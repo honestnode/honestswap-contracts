@@ -23,6 +23,8 @@ const setupPrivileges: DeployFunction = async (bre: BuidlerRuntimeEnvironment) =
 
   switch (bre.network.name) {
     case 'buidlerevm':
+    case 'localhost':
+    case 'ropsten':
       break;
     default:
       await proxyAdmin.transferOwnership(timelock.address);

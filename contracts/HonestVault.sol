@@ -161,6 +161,10 @@ contract HonestVault is IHonestVault, AbstractHonestContract {
         return _weights[account];
     }
 
+    function totalWeight() external override view returns (uint) {
+        return _totalWeight;
+    }
+
     function shareOf(address account) external override view returns (uint) {
         return _shares[account];
     }

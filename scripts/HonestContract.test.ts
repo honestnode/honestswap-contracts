@@ -38,7 +38,7 @@ export const getNamedAccounts = async (): Promise<NamedAccounts> => {
   };
 };
 
-export const expectAmount = (amount: string, expected: string, decimals: number = 18) : void => {
+export const expectAmount = (amount: BigNumber, expected: string, decimals: number = 18) : void => {
   if (expected.charAt(0) === '>') {
     expect(amount).to.gt(utils.parseUnits(expected.substr(1), decimals));
   } else if (expected.charAt(0) === '<') {

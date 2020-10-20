@@ -81,16 +81,16 @@ describe('HonestAssetManager', () => {
   });
 
   it('swap', async () => {
-    await usdt.approve(honestAssetManager.address, utils.parseUnits('10.1', 6));
+    await usdt.approve(honestAssetManager.address, utils.parseUnits('10', 6));
 
     await honestAssetManager.swap(usdt.address, dai.address, utils.parseUnits('10', 6));
 
     let amount = await dai.balanceOf(namedAccounts.dummy1.address);
-    expect(amount).to.equal(utils.parseUnits('90', 18));
+    expectAmount(amount, '89.9');
     amount = await usdt.balanceOf(namedAccounts.dummy1.address);
-    expect(amount).to.equal(utils.parseUnits('69.9', 6));
+    expectAmount(amount, '70', 6);
 
-    await assertAssetBalances(honestVault.address, ['0', '10', '10', '20.1']);
+    await assertAssetBalances(honestVault.address, ['0.1', '10', '10', '20']);
   });
 
   it('withdraw', async () => {
