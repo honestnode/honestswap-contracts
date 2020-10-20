@@ -17,5 +17,6 @@ package-lock.json
 
 .openzeppelin/unknown-*.json
 
-.secret
-.infura
+config/local.json
+
+deployments/localhost_*

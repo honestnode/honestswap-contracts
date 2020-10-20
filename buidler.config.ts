@@ -1,14 +1,11 @@
 import {BuidlerConfig, usePlugin} from '@nomiclabs/buidler/config';
-import * as fs from 'fs';
-
-const infuraKey = fs.readFileSync('.infura').toString().trim();
-const mnemonic = fs.readFileSync('.secret').toString().trim();
+import config from 'config';
 
 usePlugin('@nomiclabs/buidler-waffle');
 usePlugin("buidler-ethers-v5");
 usePlugin('buidler-deploy');
 
-const config: BuidlerConfig = {
+const buidlerConfig: BuidlerConfig = {
   namedAccounts: {
     dealer: 0,
     dummy1: 1,
@@ -24,10 +21,22 @@ const config: BuidlerConfig = {
       // loggingEnabled: true,
       gas: 'auto',
     },
-    rinkeby: {
-      url: `https://rinkeby.infura.io/v3/${infuraKey}`,
+    localhost: {
+      url: config.get<string>('ganache.url'),
       accounts: {
-        mnemonic: mnemonic
+        mnemonic: config.get<string>('ganache.mnemonic')
+      }
+    },
+    ropsten: {
+      url: config.get<string>('ropsten.url'),
+      accounts: {
+        mnemonic: config.get<string>('ropsten.mnemonic')
+      }
+    },
+    rinkeby: {
+      url: config.get<string>('rinkeby.url'),
+      accounts: {
+        mnemonic: config.get<string>('rinkeby.mnemonic')
       }
     }
   },
@@ -40,4 +49,4 @@ const config: BuidlerConfig = {
   }
 };
 
-export default config;
+export default buidlerConfig;

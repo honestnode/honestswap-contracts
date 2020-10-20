@@ -1,0 +1,10 @@
+{
+  "ganache": {
+    "url": "",
+    "mnemonic": ""
+  },
+  "rinkeby": {
+    "url": "",
+    "mnemonic": ""
+  }
+}
