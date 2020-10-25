@@ -16,6 +16,13 @@ import {IHonestAsset} from './interfaces/IHonestAsset.sol';
 
 contract HonestAssetManager is IHonestAssetManager, AbstractHonestContract {
 
+    event Minted(address indexed account, address[] assets, uint[] amounts);
+    event RedeemedProportionally(address indexed account, uint amount);
+    event RedeemedManually(address indexed account, address[] assets, uint[] amounts);
+    event Swapped(address indexed account, address from, address to, uint amount);
+    event Deposited(address indexed account, uint amount);
+    event Withdrawn(address indexed account, uint weight);
+
     address private _honestConfiguration;
     address private _honestVault;
 
@@ -56,6 +63,8 @@ contract HonestAssetManager is IHonestAssetManager, AbstractHonestContract {
         }
 
         IHonestAsset(_honestAsset()).mint(_msgSender(), totalAmount);
+
+        emit Minted(_msgSender(), bAssets, amounts);
     }
 
     function redeemProportionally(uint amount) external override {
@@ -64,6 +73,8 @@ contract HonestAssetManager is IHonestAssetManager, AbstractHonestContract {
         IHonestAsset(_honestAsset()).burn(_msgSender(), amount);
 
         IHonestVault(_honestVault).distributeProportionally(_msgSender(), amount);
+
+        emit RedeemedProportionally(_msgSender(), amount);
     }
 
     function redeemManually(address[] calldata assets, uint[] calldata amounts) external override {
@@ -79,6 +90,8 @@ contract HonestAssetManager is IHonestAssetManager, AbstractHonestContract {
         IHonestAsset(_honestAsset()).burn(_msgSender(), totalAmount);
 
         IHonestVault(_honestVault).distributeManually(_msgSender(), assets, amounts);
+
+        emit RedeemedManually(_msgSender(), assets, amounts);
     }
 
     function swap(address from, address to, uint amount) external override {
@@ -97,6 +110,8 @@ contract HonestAssetManager is IHonestAssetManager, AbstractHonestContract {
         uint[] memory amounts = new uint[](1);
         amounts[0] = standardAmount.sub(fee);
         IHonestVault(_honestVault).distributeManually(_msgSender(), assets, amounts);
+
+        emit Swapped(_msgSender(), from, to, amount);
     }
 
     function deposit(uint amount) external override {
@@ -104,6 +119,8 @@ contract HonestAssetManager is IHonestAssetManager, AbstractHonestContract {
 
         IERC20(_honestAsset()).safeTransferFrom(_msgSender(), address(this), amount);
         IHonestVault(_honestVault).deposit(_msgSender(), amount);
+
+        emit Deposited(_msgSender(), amount);
     }
 
     function withdraw(uint weight) external override {
@@ -114,10 +131,8 @@ contract HonestAssetManager is IHonestAssetManager, AbstractHonestContract {
             IHonestAsset(_honestAsset()).mint(address(this), amount.sub(weight));
         }
         IHonestAsset(_honestAsset()).transfer(_msgSender(), amount);
-    }
 
-    function _mintFee(uint fee) internal {
-
+        emit Withdrawn(_msgSender(), weight);
     }
 
     function setHonestConfiguration(address honestConfiguration_) external override {
