@@ -143,6 +143,10 @@ contract HonestVault is IHonestVault, AbstractHonestContract {
         return (assets, amounts, totalAmount);
     }
 
+    function balanceOf(address asset) external override view returns (uint) {
+        return _balanceOf(Repository.ALL, asset);
+    }
+
     function _balanceOf(Repository repository, address asset) internal view returns (uint) {
         if (repository == Repository.VAULT) {
             return ERC20(asset).standardBalanceOf(address(this));

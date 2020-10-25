@@ -2,7 +2,7 @@ import {ethers} from '@nomiclabs/buidler';
 import {Signer, utils} from 'ethers';
 
 async function main() {
-  const account = '0xb17Bf1B0dEa8097f7f100c1AC43784320c50c27C';
+  const account = '0x788A6D6Ec9dfd283810e93D0245e5Da283cfE7f1';
   const amount = '100';
   const signers = await ethers.getSigners();
   for(const asset of ['MockDAI', 'MockTUSD', 'MockUSDC', 'MockUSDT']) {

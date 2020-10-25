@@ -16,6 +16,8 @@ interface IHonestVault {
 
     function balances() external view returns (address[] memory, uint[] memory, uint);
 
+    function balanceOf(address asset) external view returns (uint);
+
     function weightOf(address account) external view returns (uint);
 
     function totalWeight() external view returns (uint);

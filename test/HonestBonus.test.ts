@@ -1,104 +1,73 @@
-// import {ethers} from '@nomiclabs/buidler';
-// import {expect} from 'chai';
-// import {Contract, Signer} from 'ethers';
-// import * as yTokenV2 from '../artifacts/MockYTokenV2.json';
-// import {honestAssetDeployer} from '../scripts/HonestAsset.deploy';
-// import {honestBonusDeployer} from '../scripts/HonestBonus.deploy';
-// import {honestConfigurationDeployer} from '../scripts/HonestConfiguration.deploy';
-// import {chainlinkIntegrationDeployer} from '../scripts/integrations/ChainlinkIntegration.deploy';
-//
-// describe('HonestBonus', () => {
-//   let supervisor: Signer, dummy: string, honestConfiguration: Contract, bonus: Contract;
-//
-//   before(async function () {
-//     supervisor = (await ethers.getSigners())[0];
-//     dummy = await (await ethers.getSigners())[1].getAddress();
-//     const honestAsset = await honestAssetDeployer.deployContracts();
-//     honestConfiguration = await honestConfigurationDeployer.deployContracts(honestAsset);
-//     const priceIntegration = await chainlinkIntegrationDeployer.deployContracts(honestConfiguration);
-//     bonus = await honestBonusDeployer.deployContracts(priceIntegration);
-//   });
-//
-//   it('calculate single bonus', async () => {
-//     const assets = await honestConfiguration.activeBasketAssets();
-//     const rate = ethers.utils.parseUnits('1', 15);
-//     for (const asset of assets) {
-//       const y = await bonus.hasBonus(asset, rate);
-//       const value = await bonus.calculateBonus(asset, ethers.utils.parseUnits('100', 18), rate);
-//       if (y) {
-//         expect(value).to.gt(ethers.BigNumber.from('0'));
-//       } else {
-//         expect(value).to.equal(ethers.BigNumber.from('0'));
-//       }
-//     }
-//   });
-//
-//   it('calculate multiple bonus', async () => {
-//     const assets = await honestConfiguration.activeBasketAssets();
-//     const rate = ethers.utils.parseUnits('1', 15);
-//     const amounts = [];
-//     for (const asset of assets) {
-//       const token = new Contract(asset, yTokenV2.abi, supervisor);
-//       const decimals = await token.decimals();
-//       amounts.push(ethers.utils.parseUnits('100', decimals));
-//     }
-//     const value = await bonus.calculateBonuses(assets, amounts, rate);
-//     expect(value).to.gte(ethers.BigNumber.from('0'));
-//   });
-//
-//   it('add bonus without authorization', async () => {
-//     await expect(bonus.addBonus(dummy, ethers.utils.parseUnits('10', 18), ethers.utils.parseUnits('1', 18))).to.reverted;
-//   });
-//
-//   it('add bonus of price 0', async () => {
-//     const assetManager = await bonus.ASSET_MANAGER();
-//     const supervisorAddress = await supervisor.getAddress();
-//     bonus.grantRole(assetManager, supervisorAddress);
-//
-//     await bonus.addBonus(dummy, ethers.utils.parseUnits('10', 18), 0);
-//     expect(await bonus.bonusOf(dummy)).to.equal(ethers.BigNumber.from('0'));
-//     expect(await bonus.shareOf(dummy)).to.equal(ethers.BigNumber.from('0'));
-//
-//     bonus.revokeRole(assetManager, supervisorAddress);
-//   });
-//
-//   it('add bonus of price 0 to valid', async () => {
-//     const assetManager = await bonus.ASSET_MANAGER();
-//     const supervisorAddress = await supervisor.getAddress();
-//     bonus.grantRole(assetManager, supervisorAddress);
-//
-//     await bonus.addBonus(dummy, ethers.utils.parseUnits('10', 18), ethers.utils.parseUnits('1', 18));
-//     expect(await bonus.bonusOf(dummy)).to.equal(ethers.utils.parseUnits('10', 18));
-//     expect(await bonus.shareOf(dummy)).to.equal(ethers.utils.parseUnits('10', 18));
-//
-//     await bonus.addBonus(dummy, ethers.utils.parseUnits('12', 18), ethers.utils.parseUnits('1.2', 18));
-//     expect(await bonus.bonusOf(dummy)).to.equal(ethers.utils.parseUnits('22', 18));
-//     expect(await bonus.shareOf(dummy)).to.equal(ethers.utils.parseUnits('20', 18));
-//
-//     bonus.revokeRole(assetManager, supervisorAddress);
-//   });
-//
-//
-//   it('reward bonus without authorization', async () => {
-//     await expect(bonus.reward(dummy, ethers.utils.parseUnits('10', 18), 0)).to.reverted;
-//   });
-//
-//   it('reward bonus', async () => {
-//     const assetManager = await bonus.ASSET_MANAGER();
-//     const supervisorAddress = await supervisor.getAddress();
-//     bonus.grantRole(assetManager, supervisorAddress);
-//
-//     let amount = await bonus.callStatic.reward(dummy, ethers.utils.parseUnits('1', 18));
-//     expect(amount).to.equal(ethers.BigNumber.from('0'));
-//
-//     amount = await bonus.callStatic.reward(dummy, ethers.utils.parseUnits('1.3', 18));
-//     expect(amount).to.equal(ethers.utils.parseUnits('4', 18));
-//
-//     await bonus.reward(dummy, ethers.utils.parseUnits('1.3', 18));
-//
-//     amount = await bonus.callStatic.reward(dummy, ethers.utils.parseUnits('1.3', 18));
-//     expect(amount).to.equal(ethers.BigNumber.from('0'));
-//
-//     bonus.revokeRole(assetManager, supervisorAddress);
-//   });
-// });
+import {deployments, ethers} from '@nomiclabs/buidler';
+import {expect} from 'chai';
+import {Contract, utils} from 'ethers';
+import {getUpgradableContract} from '../scripts/HonestContract.deploy';
+import {getNamedAccounts, NamedAccounts} from '../scripts/HonestContract.test';
+
+describe('HonestBonus', () => {
+
+  let namedAccounts: NamedAccounts;
+  let honestBonus: Contract, honestVault: Contract, role: string;
+  let dai: Contract, tusd: Contract, usdc: Contract, usdt: Contract;
+
+  const initializeAccounts = async () => {
+    namedAccounts = await getNamedAccounts();
+  };
+
+  const deployContracts = async () => {
+    await deployments.fixture();
+    honestBonus = await getUpgradableContract('HonestBonus', namedAccounts.dummy1.signer);
+    honestVault = await getUpgradableContract('HonestVault', namedAccounts.supervisor.signer);
+    dai = await ethers.getContract('MockDAI', namedAccounts.supervisor.signer);
+    tusd = await ethers.getContract('MockTUSD', namedAccounts.supervisor.signer);
+    usdc = await ethers.getContract('MockUSDC', namedAccounts.supervisor.signer);
+    usdt = await ethers.getContract('MockUSDT', namedAccounts.supervisor.signer);
+  };
+
+  before(async () => {
+    await initializeAccounts();
+    await deployContracts();
+    role = await honestBonus.assetManagerRole();
+  });
+
+  it('without authorized, revert', async () => {
+    await expect(honestBonus.hasBonus(dai.address)).to.reverted;
+    await expect(honestBonus.calculateMintBonus([dai.address], [utils.parseUnits('100', 18)])).to.reverted;
+    await namedAccounts.supervisor.connect(honestBonus).grantRole(role, namedAccounts.dummy1.address);
+  });
+
+  it('has bonus', async () => {
+    const result = await honestBonus.hasBonus(dai.address);
+    expect(result).to.equal(true);
+  });
+
+  it('calculate bonus', async () => {
+    const result = await honestBonus.calculateMintBonus(
+      [dai.address, tusd.address, usdc.address, usdt.address],
+      [utils.parseUnits('100', 18), utils.parseUnits('100', 18), utils.parseUnits('100', 18), utils.parseUnits('100', 18)]);
+
+    expect(result).to.equal(utils.parseUnits('400', 18));
+  });
+
+  it('has bonus', async () => {
+    await dai.mint(honestVault.address, utils.parseUnits('100', 18));
+    await tusd.mint(honestVault.address, utils.parseUnits('200', 18));
+    await usdc.mint(honestVault.address, utils.parseUnits('200', 6));
+    let result = await honestBonus.hasBonus(dai.address);
+    expect(result).to.equal(true);
+    result = await honestBonus.hasBonus(tusd.address);
+    expect(result).to.equal(false);
+    result = await honestBonus.hasBonus(usdc.address);
+    expect(result).to.equal(false);
+    result = await honestBonus.hasBonus(usdt.address);
+    expect(result).to.equal(true);
+  });
+
+  it('calculate bonus', async () => {
+    const result = await honestBonus.calculateMintBonus(
+      [dai.address, tusd.address, usdc.address, usdt.address],
+      [utils.parseUnits('100', 18), utils.parseUnits('100', 18), utils.parseUnits('100', 18), utils.parseUnits('100', 18)]);
+
+    expect(result).to.equal(utils.parseUnits('120', 18));
+  });
+});
